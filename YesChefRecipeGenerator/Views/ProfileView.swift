@@ -1,0 +1,228 @@
+import SwiftUI
+
+struct ProfileView: View {
+    @Environment(LanguageManager.self) private var lang
+    @Environment(LikesStore.self) private var likesStore
+    @Environment(TriedRecipesStore.self) private var triedStore
+    @State private var selectedRecipe: Recipe?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    statsSection
+                    languageSection
+                    triedRecipesSection
+                }
+                .padding(.vertical, 16)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(lang.t("Profile", "Profil"))
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(item: $selectedRecipe) { recipe in
+                RecipeDetailView(recipe: recipe, viewModel: RecipeViewModel())
+            }
+        }
+    }
+
+    private var statsSection: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+                statCard(
+                    icon: "fork.knife",
+                    color: .orange,
+                    value: "\(triedStore.recipes.count)",
+                    label: lang.t("Tried", "Denendi")
+                )
+                statCard(
+                    icon: "heart.fill",
+                    color: .pink,
+                    value: "\(totalLikes)",
+                    label: lang.t("Liked", "Beğenildi")
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var totalLikes: Int {
+        likesStore.likes.values.reduce(0, +)
+    }
+
+    private func statCard(icon: String, color: Color, value: String, label: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+                .frame(width: 48, height: 48)
+                .background(color.opacity(0.12))
+                .clipShape(Circle())
+
+            Text(value)
+                .font(.title2.weight(.bold))
+
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 16))
+    }
+
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(lang.t("Language", "Dil"), systemImage: "globe")
+                .font(.headline)
+                .padding(.horizontal, 16)
+
+            HStack(spacing: 10) {
+                ForEach(AppLanguage.allCases, id: \.rawValue) { language in
+                    Button {
+                        withAnimation(.spring(duration: 0.3)) {
+                            lang.current = language
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(language.flag)
+                                .font(.body)
+                            Text(language.displayName)
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            lang.current == language
+                                ? Color.orange.opacity(0.15)
+                                : Color(.secondarySystemGroupedBackground)
+                        )
+                        .foregroundStyle(lang.current == language ? .orange : .primary)
+                        .clipShape(.rect(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(
+                                    lang.current == language ? Color.orange.opacity(0.4) : .clear,
+                                    lineWidth: 1.5
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var triedRecipesSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label(lang.t("Tried Recipes", "Denenen Tarifler"), systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                Spacer()
+                if !triedStore.recipes.isEmpty {
+                    Text("\(triedStore.recipes.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if triedStore.recipes.isEmpty {
+                emptyState
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(triedStore.recipes) { recipe in
+                        triedRecipeRow(recipe)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "tray")
+                .font(.system(size: 36))
+                .foregroundStyle(.tertiary)
+
+            Text(lang.t(
+                "No recipes tried yet",
+                "Henüz denenen tarif yok"
+            ))
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+            Text(lang.t(
+                "Recipes you cook will appear here",
+                "Pişirdiğin tarifler burada görünecek"
+            ))
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 16))
+        .padding(.horizontal, 16)
+    }
+
+    private func triedRecipeRow(_ recipe: Recipe) -> some View {
+        Button {
+            selectedRecipe = recipe
+        } label: {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(recipe.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
+                        Text(recipe.cuisine)
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.orange.opacity(0.12))
+                            .foregroundStyle(.orange)
+                            .clipShape(.rect(cornerRadius: 5))
+
+                        Text(recipe.difficulty)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+
+                        Text("\(recipe.calories) cal")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(duration: 0.3)) {
+                        triedStore.remove(recipe)
+                    }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                        .foregroundStyle(.red.opacity(0.6))
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+    }
+}

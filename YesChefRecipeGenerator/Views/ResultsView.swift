@@ -1,0 +1,203 @@
+import SwiftUI
+
+struct ResultsView: View {
+    let viewModel: RecipeViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(LikesStore.self) private var likesStore
+    @Environment(LanguageManager.self) private var lang
+    @State private var selectedRecipe: Recipe?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    if !viewModel.exactMatchRecipes.isEmpty {
+                        recipeSection(
+                            title: lang.t("Exact Match", "Birebir Eşleşme"),
+                            subtitle: lang.t("Using only your ingredients", "Sadece senin malzemelerin"),
+                            icon: "checkmark.seal.fill",
+                            color: .green,
+                            recipes: viewModel.exactMatchRecipes
+                        )
+                    }
+
+                    if !viewModel.extraIngredientRecipes.isEmpty {
+                        recipeSection(
+                            title: lang.t("New Flavors", "Yeni Lezzetler"),
+                            subtitle: lang.t("With a few extra ingredients", "Birkaç ekstra malzemeyle"),
+                            icon: "sparkles",
+                            color: .purple,
+                            recipes: viewModel.extraIngredientRecipes
+                        )
+                    }
+                }
+                .padding(.vertical, 16)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(lang.t("Your Recipes", "Tariflerin"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .sheet(item: $selectedRecipe) { recipe in
+                RecipeDetailView(recipe: recipe, viewModel: viewModel) {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func recipeSection(
+        title: String,
+        subtitle: String,
+        icon: String,
+        color: Color,
+        recipes: [Recipe]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(recipes) { recipe in
+                        RecipeCardView(recipe: recipe) {
+                            selectedRecipe = recipe
+                        }
+                    }
+                }
+            }
+            .contentMargins(.horizontal, 16)
+        }
+    }
+}
+
+struct RecipeCardView: View {
+    let recipe: Recipe
+    let onTap: () -> Void
+    @Environment(LikesStore.self) private var likesStore
+    @Environment(LanguageManager.self) private var lang
+
+    private var difficultyColor: Color {
+        switch recipe.difficulty.lowercased() {
+        case "easy": return .green
+        case "medium": return .orange
+        case "hard": return .red
+        default: return .secondary
+        }
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Text(recipe.cuisine)
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.orange.opacity(0.15))
+                        .foregroundStyle(.orange)
+                        .clipShape(.rect(cornerRadius: 6))
+
+                    Text(recipe.difficulty)
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(difficultyColor.opacity(0.15))
+                        .foregroundStyle(difficultyColor)
+                        .clipShape(.rect(cornerRadius: 6))
+
+                    Spacer()
+
+                    Text("\(recipe.calories) cal")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(recipe.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(recipe.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+
+                if !recipe.required_extra_ingredients.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.purple)
+                        Text(recipe.required_extra_ingredients.joined(separator: ", "))
+                            .font(.caption2)
+                            .foregroundStyle(.purple)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 16) {
+                    Button {
+                        likesStore.toggleLike(for: recipe.id)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "hand.thumbsup.fill")
+                            Text("\(likesStore.likeCount(for: recipe.id))")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        likesStore.toggleDislike(for: recipe.id)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "hand.thumbsdown.fill")
+                            Text("\(likesStore.dislikeCount(for: recipe.id))")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.red.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Text(lang.t("View", "Gör"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(16)
+            .frame(width: 260, height: 240)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+}
