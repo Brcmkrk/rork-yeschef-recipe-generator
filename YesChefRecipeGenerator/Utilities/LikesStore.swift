@@ -109,21 +109,31 @@ class LikesStore {
         guard SupabaseService.shared.isConfigured else { return }
         do {
             let remoteReactions = try await SupabaseService.shared.fetchMyReactions()
-            var newReactions: [String: ReactionType] = [:]
-            var newLiked: [Recipe] = []
+            var mergedReactions: [String: ReactionType] = [:]
+            var mergedLiked: [Recipe] = []
 
             for r in remoteReactions {
                 let type: ReactionType = r.reaction == "like" ? .like : .dislike
-                newReactions[r.recipe_id] = type
+                mergedReactions[r.recipe_id] = type
 
                 if type == .like, let recipeData = r.recipe_data.data(using: .utf8),
                    let recipe = try? JSONDecoder().decode(Recipe.self, from: recipeData) {
-                    newLiked.append(recipe)
+                    mergedLiked.append(recipe)
                 }
             }
 
-            reactions = newReactions
-            likedRecipes = newLiked
+            for (id, localReaction) in reactions where mergedReactions[id] == nil {
+                mergedReactions[id] = localReaction
+                if localReaction == .like, let recipe = likedRecipes.first(where: { $0.id == id }) {
+                    mergedLiked.append(recipe)
+                    try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "like")
+                } else if localReaction == .dislike, let recipe = likedRecipes.first(where: { $0.id == id }) {
+                    try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "dislike")
+                }
+            }
+
+            reactions = mergedReactions
+            likedRecipes = mergedLiked
             saveLocal()
         } catch {
             // keep local data on failure

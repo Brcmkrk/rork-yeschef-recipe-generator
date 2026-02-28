@@ -19,6 +19,14 @@ nonisolated struct ReactionRow: Codable, Sendable {
     let reaction: String
 }
 
+nonisolated struct SupabaseTriedRecipe: Codable, Sendable {
+    let id: String?
+    let device_id: String
+    let recipe_id: String
+    let recipe_data: String
+    let created_at: String?
+}
+
 class SupabaseService {
     static let shared = SupabaseService()
 
@@ -141,6 +149,53 @@ class SupabaseService {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
         let results = (try? JSONDecoder().decode([SupabaseReaction].self, from: data)) ?? []
+        return results.first
+    }
+
+    func fetchMyTriedRecipes() async throws -> [SupabaseTriedRecipe] {
+        guard isConfigured else { return [] }
+        let query = "select=*&device_id=eq.\(deviceId)&order=created_at.desc"
+        guard let request = makeRequest(path: "tried_recipes", method: "GET", queryParams: query) else { return [] }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
+        return (try? JSONDecoder().decode([SupabaseTriedRecipe].self, from: data)) ?? []
+    }
+
+    func upsertTriedRecipe(recipe: Recipe) async throws {
+        guard isConfigured else { return }
+        let recipeJSON = (try? JSONEncoder().encode(recipe)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+        let existing = try await fetchTriedRecipe(recipeId: recipe.id)
+        if existing != nil { return }
+
+        let row = SupabaseTriedRecipe(
+            id: nil,
+            device_id: deviceId,
+            recipe_id: recipe.id,
+            recipe_data: recipeJSON,
+            created_at: nil
+        )
+        guard let bodyData = try? JSONEncoder().encode(row),
+              let request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else { return }
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    func deleteTriedRecipe(recipeId: String) async throws {
+        guard isConfigured else { return }
+        let query = "device_id=eq.\(deviceId)&recipe_id=eq.\(recipeId)"
+        guard let request = makeRequest(path: "tried_recipes", method: "DELETE", queryParams: query) else { return }
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    private func fetchTriedRecipe(recipeId: String) async throws -> SupabaseTriedRecipe? {
+        guard isConfigured else { return nil }
+        let query = "select=*&device_id=eq.\(deviceId)&recipe_id=eq.\(recipeId)&limit=1"
+        guard let request = makeRequest(path: "tried_recipes", method: "GET", queryParams: query) else { return nil }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        let results = (try? JSONDecoder().decode([SupabaseTriedRecipe].self, from: data)) ?? []
         return results.first
     }
 }
