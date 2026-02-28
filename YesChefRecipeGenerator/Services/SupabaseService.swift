@@ -9,6 +9,16 @@ nonisolated struct SupabaseReaction: Codable, Sendable {
     let created_at: String?
 }
 
+nonisolated struct RecipeCounts: Sendable {
+    var likes: Int = 0
+    var dislikes: Int = 0
+}
+
+nonisolated struct ReactionRow: Codable, Sendable {
+    let recipe_id: String
+    let reaction: String
+}
+
 class SupabaseService {
     static let shared = SupabaseService()
 
@@ -94,6 +104,33 @@ class SupabaseService {
         let query = "device_id=eq.\(deviceId)&recipe_id=eq.\(recipeId)"
         guard let request = makeRequest(path: "recipe_reactions", method: "DELETE", queryParams: query) else { return }
         _ = try await URLSession.shared.data(for: request)
+    }
+
+    func fetchGlobalCounts(recipeIds: [String]) async -> [String: RecipeCounts] {
+        guard isConfigured, !recipeIds.isEmpty else { return [:] }
+        let idFilter = recipeIds.map { "\"\($0)\"" }.joined(separator: ",")
+        let query = "select=recipe_id,reaction&recipe_id=in.(\(idFilter))"
+        guard let request = makeRequest(path: "recipe_reactions", method: "GET", queryParams: query) else { return [:] }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [:] }
+            let rows = (try? JSONDecoder().decode([ReactionRow].self, from: data)) ?? []
+
+            var counts: [String: RecipeCounts] = [:]
+            for row in rows {
+                var c = counts[row.recipe_id] ?? RecipeCounts()
+                if row.reaction == "like" {
+                    c.likes += 1
+                } else if row.reaction == "dislike" {
+                    c.dislikes += 1
+                }
+                counts[row.recipe_id] = c
+            }
+            return counts
+        } catch {
+            return [:]
+        }
     }
 
     private func fetchReaction(recipeId: String) async throws -> SupabaseReaction? {

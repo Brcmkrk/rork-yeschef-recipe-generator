@@ -33,6 +33,10 @@ struct ResultsView: View {
                 }
                 .padding(.vertical, 16)
             }
+            .onAppear {
+                let allRecipes = viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes
+                likesStore.fetchGlobalCounts(for: allRecipes)
+            }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(lang.t("Your Recipes", "Tariflerin"))
             .navigationBarTitleDisplayMode(.inline)
@@ -161,16 +165,25 @@ struct RecipeCardView: View {
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button {
                         withAnimation(.spring(duration: 0.3)) {
                             likesStore.toggleLike(for: recipe.id, recipe: recipe)
                         }
                     } label: {
-                        Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            .font(.body)
-                            .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .green : .secondary)
-                            .contentTransition(.symbolEffect(.replace))
+                        HStack(spacing: 4) {
+                            Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.subheadline)
+                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .green : .secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                            let likeCount = likesStore.likesCount(for: recipe.id)
+                            if likeCount > 0 {
+                                Text("\(likeCount)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .green : .secondary)
+                                    .contentTransition(.numericText())
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .like)
@@ -180,10 +193,19 @@ struct RecipeCardView: View {
                             likesStore.toggleDislike(for: recipe.id, recipe: recipe)
                         }
                     } label: {
-                        Image(systemName: likesStore.reaction(for: recipe.id) == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                            .font(.body)
-                            .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
-                            .contentTransition(.symbolEffect(.replace))
+                        HStack(spacing: 4) {
+                            Image(systemName: likesStore.reaction(for: recipe.id) == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                .font(.subheadline)
+                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                            let dislikeCount = likesStore.dislikesCount(for: recipe.id)
+                            if dislikeCount > 0 {
+                                Text("\(dislikeCount)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
+                                    .contentTransition(.numericText())
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .dislike)
