@@ -139,7 +139,7 @@ struct RatingView: View {
     private func ratingButtons(_ recipe: Recipe) -> some View {
         HStack(spacing: 20) {
             Button {
-                likesStore.toggleDislike(for: recipe.id)
+                likesStore.toggleDislike(for: recipe.id, recipe: recipe)
                 advanceCard()
             } label: {
                 VStack(spacing: 6) {
@@ -174,7 +174,7 @@ struct RatingView: View {
             .buttonStyle(.plain)
 
             Button {
-                likesStore.toggleLike(for: recipe.id)
+                likesStore.toggleLike(for: recipe.id, recipe: recipe)
                 advanceCard()
             } label: {
                 VStack(spacing: 6) {

@@ -12,6 +12,7 @@ struct ProfileView: View {
                 VStack(spacing: 24) {
                     statsSection
                     languageSection
+                    likedRecipesSection
                     triedRecipesSection
                 }
                 .padding(.vertical, 16)
@@ -37,16 +38,12 @@ struct ProfileView: View {
                 statCard(
                     icon: "heart.fill",
                     color: .pink,
-                    value: "\(totalLikes)",
+                    value: "\(likesStore.likedRecipes.count)",
                     label: lang.t("Liked", "Beğenildi")
                 )
             }
         }
         .padding(.horizontal, 16)
-    }
-
-    private var totalLikes: Int {
-        likesStore.likes.values.reduce(0, +)
     }
 
     private func statCard(icon: String, color: Color, value: String, label: String) -> some View {
@@ -114,6 +111,59 @@ struct ProfileView: View {
         }
     }
 
+    private var likedRecipesSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label(lang.t("Liked Recipes", "Beğenilen Tarifler"), systemImage: "heart.fill")
+                    .font(.headline)
+                    .foregroundStyle(.pink)
+                Spacer()
+                if !likesStore.likedRecipes.isEmpty {
+                    Text("\(likesStore.likedRecipes.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if likesStore.likedRecipes.isEmpty {
+                VStack(spacing: 14) {
+                    Image(systemName: "heart.slash")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+
+                    Text(lang.t(
+                        "No liked recipes yet",
+                        "Henüz beğenilen tarif yok"
+                    ))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                    Text(lang.t(
+                        "Recipes you like will appear here",
+                        "Beğendiğin tarifler burada görünecek"
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(.rect(cornerRadius: 16))
+                .padding(.horizontal, 16)
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(likesStore.likedRecipes) { recipe in
+                        recipeRow(recipe, icon: "heart.fill", iconColor: .pink) {
+                            likesStore.removeLikedRecipe(recipe)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
     private var triedRecipesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -129,11 +179,36 @@ struct ProfileView: View {
             .padding(.horizontal, 16)
 
             if triedStore.recipes.isEmpty {
-                emptyState
+                VStack(spacing: 14) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+
+                    Text(lang.t(
+                        "No recipes tried yet",
+                        "Henüz denenen tarif yok"
+                    ))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                    Text(lang.t(
+                        "Recipes you cook will appear here",
+                        "Pişirdiğin tarifler burada görünecek"
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(.rect(cornerRadius: 16))
+                .padding(.horizontal, 16)
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(triedStore.recipes) { recipe in
-                        triedRecipeRow(recipe)
+                        recipeRow(recipe, icon: "checkmark.circle.fill", iconColor: .green) {
+                            triedStore.remove(recipe)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -141,34 +216,7 @@ struct ProfileView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "tray")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
-
-            Text(lang.t(
-                "No recipes tried yet",
-                "Henüz denenen tarif yok"
-            ))
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-            Text(lang.t(
-                "Recipes you cook will appear here",
-                "Pişirdiğin tarifler burada görünecek"
-            ))
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
-        .padding(.horizontal, 16)
-    }
-
-    private func triedRecipeRow(_ recipe: Recipe) -> some View {
+    private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, onDelete: @escaping () -> Void) -> some View {
         Button {
             selectedRecipe = recipe
         } label: {
@@ -205,7 +253,7 @@ struct ProfileView: View {
 
                 Button {
                     withAnimation(.spring(duration: 0.3)) {
-                        triedStore.remove(recipe)
+                        onDelete()
                     }
                 } label: {
                     Image(systemName: "trash")
