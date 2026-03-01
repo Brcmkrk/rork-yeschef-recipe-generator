@@ -227,6 +227,18 @@ class OpenAIService {
     }
 
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
+        var allTranslated: [Recipe] = []
+        let batchSize = 2
+        for i in stride(from: 0, to: recipes.count, by: batchSize) {
+            let end = min(i + batchSize, recipes.count)
+            let batch = Array(recipes[i..<end])
+            let translated = try await translateBatch(batch, to: language)
+            allTranslated.append(contentsOf: translated)
+        }
+        return allTranslated
+    }
+
+    private func translateBatch(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
@@ -253,7 +265,7 @@ class OpenAIService {
                 OpenAIChatMessage(role: "user", content: recipesString)
             ],
             temperature: 0.3,
-            max_tokens: 5000
+            max_tokens: 8000
         )
 
         var urlRequest = URLRequest(url: url)
@@ -265,7 +277,8 @@ class OpenAIService {
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIError.invalidResponse
+            let body = String(data: data, encoding: .utf8) ?? "Unknown"
+            throw OpenAIError.apiError("Translation failed: \(body)")
         }
 
         let chatResponse = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)

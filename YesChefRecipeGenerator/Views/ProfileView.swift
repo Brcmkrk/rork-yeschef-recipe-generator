@@ -5,7 +5,7 @@ struct ProfileView: View {
     @Environment(LikesStore.self) private var likesStore
     @Environment(TriedRecipesStore.self) private var triedStore
     @Environment(StatsStore.self) private var statsStore
-    @State private var selectedRecipe: Recipe?
+    @State private var selectedRecipeId: String?
 
     var body: some View {
         NavigationStack {
@@ -38,8 +38,14 @@ struct ProfileView: View {
                 likesStore.translateRecipes(to: newValue.rawValue)
                 triedStore.translateRecipes(to: newValue.rawValue)
             }
-            .sheet(item: $selectedRecipe) { recipe in
-                RecipeDetailView(recipe: recipe, viewModel: RecipeViewModel())
+            .sheet(isPresented: Binding(
+                get: { selectedRecipeId != nil },
+                set: { if !$0 { selectedRecipeId = nil } }
+            )) {
+                if let id = selectedRecipeId,
+                   let recipe = (likesStore.likedRecipes + triedStore.recipes).first(where: { $0.id == id }) {
+                    RecipeDetailView(recipe: recipe, viewModel: RecipeViewModel())
+                }
             }
         }
     }
@@ -236,7 +242,7 @@ struct ProfileView: View {
 
     private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, onDelete: @escaping () -> Void) -> some View {
         Button {
-            selectedRecipe = recipe
+            selectedRecipeId = recipe.id
         } label: {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {

@@ -5,7 +5,7 @@ struct ResultsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(LikesStore.self) private var likesStore
     @Environment(LanguageManager.self) private var lang
-    @State private var selectedRecipe: Recipe?
+    @State private var selectedRecipeId: String?
 
     var body: some View {
         NavigationStack {
@@ -66,9 +66,15 @@ struct ResultsView: View {
                     }
                 }
             }
-            .sheet(item: $selectedRecipe) { recipe in
-                RecipeDetailView(recipe: recipe, viewModel: viewModel) {
-                    dismiss()
+            .sheet(isPresented: Binding(
+                get: { selectedRecipeId != nil },
+                set: { if !$0 { selectedRecipeId = nil } }
+            )) {
+                if let id = selectedRecipeId,
+                   let recipe = (viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes).first(where: { $0.id == id }) {
+                    RecipeDetailView(recipe: recipe, viewModel: viewModel) {
+                        dismiss()
+                    }
                 }
             }
         }
@@ -101,7 +107,7 @@ struct ResultsView: View {
                 HStack(spacing: 14) {
                     ForEach(recipes) { recipe in
                         RecipeCardView(recipe: recipe) {
-                            selectedRecipe = recipe
+                            selectedRecipeId = recipe.id
                         }
                     }
                 }

@@ -25,27 +25,44 @@ class RecipeViewModel {
 
     var language: String = "en"
     var isTranslating: Bool = false
+    var translationError: String?
 
     func translateIfNeeded(to newLanguage: String) {
-        guard newLanguage != language else { return }
-        let oldLanguage = language
         language = newLanguage
         guard hasResults, !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else { return }
-        guard (exactMatchRecipes.first?.language ?? oldLanguage) != newLanguage else { return }
+
+        let exactNeedsTranslation = exactMatchRecipes.contains { ($0.language ?? "") != newLanguage }
+        let extraNeedsTranslation = extraIngredientRecipes.contains { ($0.language ?? "") != newLanguage }
+        guard exactNeedsTranslation || extraNeedsTranslation else { return }
 
         isTranslating = true
+        translationError = nil
         Task {
             do {
-                if !exactMatchRecipes.isEmpty {
-                    let translated = try await OpenAIService.shared.translateRecipes(exactMatchRecipes, to: newLanguage)
-                    exactMatchRecipes = translated.map { var r = $0; r.language = newLanguage; return r }
+                if exactNeedsTranslation && !exactMatchRecipes.isEmpty {
+                    let toTranslate = exactMatchRecipes.filter { ($0.language ?? "") != newLanguage }
+                    let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
+                    for t in translated {
+                        if let idx = exactMatchRecipes.firstIndex(where: { $0.id == t.id }) {
+                            var updated = t
+                            updated.language = newLanguage
+                            exactMatchRecipes[idx] = updated
+                        }
+                    }
                 }
-                if !extraIngredientRecipes.isEmpty {
-                    let translated = try await OpenAIService.shared.translateRecipes(extraIngredientRecipes, to: newLanguage)
-                    extraIngredientRecipes = translated.map { var r = $0; r.language = newLanguage; return r }
+                if extraNeedsTranslation && !extraIngredientRecipes.isEmpty {
+                    let toTranslate = extraIngredientRecipes.filter { ($0.language ?? "") != newLanguage }
+                    let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
+                    for t in translated {
+                        if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == t.id }) {
+                            var updated = t
+                            updated.language = newLanguage
+                            extraIngredientRecipes[idx] = updated
+                        }
+                    }
                 }
             } catch {
-                // keep originals on failure
+                translationError = error.localizedDescription
             }
             isTranslating = false
         }

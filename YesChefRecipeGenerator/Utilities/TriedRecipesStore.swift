@@ -74,16 +74,11 @@ class TriedRecipesStore {
 
     func translateRecipes(to language: String) {
         guard !recipes.isEmpty else { return }
-        let needsTranslation = recipes.contains { ($0.language ?? "") != language }
-        guard needsTranslation else { return }
+        let toTranslate = recipes.filter { ($0.language ?? "") != language }
+        guard !toTranslate.isEmpty else { return }
         isTranslating = true
         Task {
             do {
-                let toTranslate = recipes.filter { ($0.language ?? "") != language }
-                guard !toTranslate.isEmpty else {
-                    isTranslating = false
-                    return
-                }
                 let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: language)
                 for t in translated {
                     if let idx = recipes.firstIndex(where: { $0.id == t.id }) {
@@ -93,7 +88,9 @@ class TriedRecipesStore {
                     }
                 }
                 saveLocal()
-            } catch {}
+            } catch {
+                print("TriedRecipesStore translation error: \(error.localizedDescription)")
+            }
             isTranslating = false
         }
     }
