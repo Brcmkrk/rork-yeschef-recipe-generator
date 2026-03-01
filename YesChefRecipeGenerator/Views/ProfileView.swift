@@ -10,7 +10,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 28) {
                     statsSection
                     languageSection
                     likedRecipesSection
@@ -18,14 +18,21 @@ struct ProfileView: View {
                 }
                 .padding(.vertical, 16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color.orange.opacity(0.02), Color(.systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .overlay {
                 if likesStore.isTranslating || triedStore.isTranslating {
                     VStack(spacing: 16) {
                         ProgressView()
                             .controlSize(.large)
                         Text(lang.t("Translating recipes...", "Tarifler çevriliyor..."))
-                            .font(.subheadline.weight(.medium))
+                            .font(.system(.subheadline, design: .rounded, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -51,52 +58,62 @@ struct ProfileView: View {
     }
 
     private var statsSection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 16) {
-                statCard(
-                    icon: "fork.knife",
-                    color: .orange,
-                    value: "\(statsStore.totalTried)",
-                    label: lang.t("Tried", "Denendi")
-                )
-                statCard(
-                    icon: "heart.fill",
-                    color: .pink,
-                    value: "\(statsStore.totalLiked)",
-                    label: lang.t("Liked", "Beğenildi")
-                )
-            }
+        HStack(spacing: 14) {
+            statCard(
+                icon: "fork.knife",
+                gradient: [Color(red: 0.95, green: 0.5, blue: 0.1), .orange],
+                value: "\(statsStore.totalTried)",
+                label: lang.t("Tried", "Denendi")
+            )
+            statCard(
+                icon: "heart.fill",
+                gradient: [.pink, Color(red: 0.9, green: 0.3, blue: 0.4)],
+                value: "\(statsStore.totalLiked)",
+                label: lang.t("Liked", "Beğenildi")
+            )
         }
         .padding(.horizontal, 16)
     }
 
-    private func statCard(icon: String, color: Color, value: String, label: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 48, height: 48)
-                .background(color.opacity(0.12))
-                .clipShape(Circle())
+    private func statCard(icon: String, gradient: [Color], value: String, label: String) -> some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .frame(width: 48, height: 48)
+                    .shadow(color: gradient.first?.opacity(0.3) ?? .clear, radius: 6, y: 2)
+
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(.white)
+            }
 
             Text(value)
-                .font(.title2.weight(.bold))
+                .font(.system(.title, design: .rounded, weight: .bold))
+                .contentTransition(.numericText())
 
             Text(label)
-                .font(.caption)
+                .font(.system(.caption, design: .rounded))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, 22)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 
     private var languageSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(lang.t("Language", "Dil"), systemImage: "globe")
-                .font(.headline)
-                .padding(.horizontal, 16)
+            HStack(spacing: 6) {
+                Image(systemName: "globe")
+                    .foregroundStyle(.blue)
+                Text(lang.t("Language", "Dil"))
+                    .font(.system(.headline, design: .rounded))
+            }
+            .padding(.horizontal, 16)
 
             HStack(spacing: 10) {
                 ForEach(AppLanguage.allCases, id: \.rawValue) { language in
@@ -109,24 +126,31 @@ struct ProfileView: View {
                             Text(language.flag)
                                 .font(.body)
                             Text(language.displayName)
-                                .font(.subheadline.weight(.medium))
+                                .font(.system(.subheadline, design: .rounded, weight: .medium))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(
                             lang.current == language
-                                ? Color.orange.opacity(0.15)
-                                : Color(.secondarySystemGroupedBackground)
+                                ? AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: [.orange.opacity(0.08), .orange.opacity(0.16)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
                         )
                         .foregroundStyle(lang.current == language ? .orange : .primary)
                         .clipShape(.rect(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .strokeBorder(
-                                    lang.current == language ? Color.orange.opacity(0.4) : .clear,
-                                    lineWidth: 1.5
+                                    lang.current == language ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.2),
+                                    lineWidth: 1
                                 )
                         )
+                        .shadow(color: lang.current == language ? .orange.opacity(0.1) : .clear, radius: 4, y: 1)
                     }
                     .buttonStyle(.plain)
                 }
@@ -138,14 +162,21 @@ struct ProfileView: View {
     private var likedRecipesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label(lang.t("Liked Recipes", "Beğenilen Tarifler"), systemImage: "heart.fill")
-                    .font(.headline)
-                    .foregroundStyle(.pink)
+                HStack(spacing: 6) {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(.pink)
+                    Text(lang.t("Liked Recipes", "Beğenilen Tarifler"))
+                        .font(.system(.headline, design: .rounded))
+                }
                 Spacer()
                 if !likesStore.likedRecipes.isEmpty {
                     Text("\(likesStore.likedRecipes.count)")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color(.tertiarySystemFill))
+                        .clipShape(.rect(cornerRadius: 8))
                 }
             }
             .padding(.horizontal, 16)
@@ -156,27 +187,21 @@ struct ProfileView: View {
                         .font(.system(size: 36))
                         .foregroundStyle(.tertiary)
 
-                    Text(lang.t(
-                        "No liked recipes yet",
-                        "Henüz beğenilen tarif yok"
-                    ))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text(lang.t("No liked recipes yet", "Henüz beğenilen tarif yok"))
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
 
-                    Text(lang.t(
-                        "Recipes you like will appear here",
-                        "Beğendiğin tarifler burada görünecek"
-                    ))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    Text(lang.t("Recipes you like will appear here", "Beğendiğin tarifler burada görünecek"))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
                 .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(.rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: 18))
                 .padding(.horizontal, 16)
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(likesStore.likedRecipes) { recipe in
                         recipeRow(recipe, icon: "heart.fill", iconColor: .pink) {
                             likesStore.hideFromProfile(recipe)
@@ -191,13 +216,21 @@ struct ProfileView: View {
     private var triedRecipesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label(lang.t("Tried Recipes", "Denenen Tarifler"), systemImage: "checkmark.circle.fill")
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(lang.t("Tried Recipes", "Denenen Tarifler"))
+                        .font(.system(.headline, design: .rounded))
+                }
                 Spacer()
                 if !triedStore.recipes.isEmpty {
                     Text("\(triedStore.recipes.count)")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color(.tertiarySystemFill))
+                        .clipShape(.rect(cornerRadius: 8))
                 }
             }
             .padding(.horizontal, 16)
@@ -208,27 +241,21 @@ struct ProfileView: View {
                         .font(.system(size: 36))
                         .foregroundStyle(.tertiary)
 
-                    Text(lang.t(
-                        "No recipes tried yet",
-                        "Henüz denenen tarif yok"
-                    ))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text(lang.t("No recipes tried yet", "Henüz denenen tarif yok"))
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
 
-                    Text(lang.t(
-                        "Recipes you cook will appear here",
-                        "Pişirdiğin tarifler burada görünecek"
-                    ))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    Text(lang.t("Recipes you cook will appear here", "Pişirdiğin tarifler burada görünecek"))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
                 .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(.rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: 18))
                 .padding(.horizontal, 16)
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(triedStore.recipes) { recipe in
                         recipeRow(recipe, icon: "checkmark.circle.fill", iconColor: .green, showLikeToggle: true) {
                             triedStore.remove(recipe)
@@ -245,10 +272,10 @@ struct ProfileView: View {
             selectedRecipeId = recipe.id
         } label: {
             HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
                         Text(recipe.title)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
 
@@ -260,10 +287,10 @@ struct ProfileView: View {
 
                     HStack(spacing: 8) {
                         Text(recipe.cuisine)
-                            .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 6)
+                            .font(.system(.caption2, design: .rounded, weight: .medium))
+                            .padding(.horizontal, 7)
                             .padding(.vertical, 3)
-                            .background(.orange.opacity(0.12))
+                            .background(.orange.opacity(0.1))
                             .foregroundStyle(.orange)
                             .clipShape(.rect(cornerRadius: 5))
 
@@ -274,9 +301,13 @@ struct ProfileView: View {
                         Text("·")
                             .foregroundStyle(.tertiary)
 
-                        Text("\(recipe.calories) cal")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 2) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 8))
+                            Text("\(recipe.calories)")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
                     }
                 }
 
@@ -316,6 +347,7 @@ struct ProfileView: View {
             .padding(14)
             .background(Color(.secondarySystemGroupedBackground))
             .clipShape(.rect(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.03), radius: 4, y: 1)
         }
         .buttonStyle(.plain)
     }

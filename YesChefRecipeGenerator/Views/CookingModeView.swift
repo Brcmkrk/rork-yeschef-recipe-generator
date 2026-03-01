@@ -40,13 +40,20 @@ struct CookingModeView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color.orange.opacity(0.02), Color(.systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle(lang.t("Cooking Mode", "Pişirme Modu"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(lang.t("Done", "Bitti")) { dismiss() }
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded))
                         .foregroundStyle(.orange)
                 }
             }
@@ -61,7 +68,13 @@ struct CookingModeView: View {
                     .fill(Color(.tertiarySystemFill))
 
                 Rectangle()
-                    .fill(.orange)
+                    .fill(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .frame(width: geo.size.width * progress)
                     .animation(.spring(duration: 0.4), value: currentStep)
             }
@@ -79,7 +92,7 @@ struct CookingModeView: View {
             "Step \(currentStep + 1) of \(recipe.steps.count)",
             "Adım \(currentStep + 1) / \(recipe.steps.count)"
         ))
-        .font(.subheadline.weight(.semibold))
+        .font(.system(.subheadline, design: .rounded, weight: .semibold))
         .foregroundStyle(.secondary)
     }
 
@@ -87,27 +100,44 @@ struct CookingModeView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("\(currentStep + 1)")
-                    .font(.title2.weight(.bold))
+                    .font(.system(.title2, design: .rounded, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 44, height: 44)
-                    .background(.orange)
+                    .background(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .clipShape(Circle())
+                    .shadow(color: .orange.opacity(0.3), radius: 4, y: 2)
 
                 Text(recipe.title)
-                    .font(.subheadline.weight(.medium))
+                    .font(.system(.subheadline, design: .rounded, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Text(recipe.steps[currentStep])
-                .font(.title3.weight(.medium))
+                .font(.system(.title3, design: .rounded, weight: .medium))
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(4)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(
+            ZStack {
+                Color(.secondarySystemGroupedBackground)
+                LinearGradient(
+                    colors: [.orange.opacity(0.03), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
         .clipShape(.rect(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 
     private var timerSection: some View {
@@ -132,7 +162,7 @@ struct CookingModeView: View {
                 }
             } label: {
                 Label(lang.t("Previous", "Önceki"), systemImage: "chevron.left")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }
@@ -146,7 +176,7 @@ struct CookingModeView: View {
                     }
                 } label: {
                     Label(lang.t("Next", "Sonraki"), systemImage: "chevron.right")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                 }
@@ -160,7 +190,7 @@ struct CookingModeView: View {
                     }
                 } label: {
                     Label(lang.t("Finish", "Bitir"), systemImage: "checkmark")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                 }
@@ -174,11 +204,11 @@ struct CookingModeView: View {
     private var nextStepPreview: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(lang.t("UP NEXT", "SIRADA"))
-                .font(.caption.weight(.bold))
+                .font(.system(.caption, design: .rounded, weight: .bold))
                 .foregroundStyle(.secondary)
 
             Text(recipe.steps[currentStep + 1])
-                .font(.subheadline)
+                .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
@@ -287,7 +317,7 @@ struct TimerCardView: View {
                 Spacer()
 
                 Text("\(timer.totalSeconds / 60) min")
-                    .font(.caption.weight(.medium))
+                    .font(.system(.caption, design: .rounded, weight: .medium))
                     .foregroundStyle(.secondary)
             }
 
@@ -297,14 +327,14 @@ struct TimerCardView: View {
             HStack(spacing: 12) {
                 if timer.isComplete {
                     Label(lang.t("Complete!", "Tamamlandı!"), systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.green)
                 } else if timer.isRunning {
                     Button {
                         timer.pause()
                     } label: {
                         Label(lang.t("Pause", "Duraklat"), systemImage: "pause.fill")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -313,7 +343,7 @@ struct TimerCardView: View {
                         timer.start()
                     } label: {
                         Label(lang.t("Start", "Başlat"), systemImage: "play.fill")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -333,8 +363,14 @@ struct TimerCardView: View {
         .padding(16)
         .background(
             timer.isComplete
-                ? Color.green.opacity(0.08)
-                : Color(.secondarySystemGroupedBackground)
+                ? AnyShapeStyle(
+                    LinearGradient(
+                        colors: [.green.opacity(0.04), .green.opacity(0.08)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
         )
         .clipShape(.rect(cornerRadius: 16))
         .overlay(

@@ -13,8 +13,9 @@ struct RecipeDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     headerCard
+                    quickStatsBar
                     ingredientsCard
                     spicesCard
                     if !recipe.required_extra_ingredients.isEmpty {
@@ -25,7 +26,14 @@ struct RecipeDetailView: View {
                 }
                 .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color.orange.opacity(0.02), Color(.systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle(recipe.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -40,6 +48,7 @@ struct RecipeDetailView: View {
                     } label: {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")
                             .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(.orange)
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
@@ -62,58 +71,105 @@ struct RecipeDetailView: View {
     }
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(recipe.title)
-                .font(.title2.weight(.bold))
+                .font(.system(.title2, design: .rounded, weight: .bold))
 
             Text(recipe.description)
                 .font(.body)
                 .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                badge(recipe.cuisine, icon: "globe", color: .orange)
-                badge(recipe.difficulty, icon: "chart.bar.fill", color: difficultyColor)
-                badge("\(recipe.calories) cal", icon: "flame.fill", color: .red)
-                badge("\(recipe.servings) srv", icon: "person.2.fill", color: .blue)
-            }
+                .lineSpacing(2)
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .background(
+            ZStack {
+                Color(.secondarySystemGroupedBackground)
+                LinearGradient(
+                    colors: [.orange.opacity(0.04), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
+        .clipShape(.rect(cornerRadius: 18))
+    }
+
+    private var quickStatsBar: some View {
+        HStack(spacing: 0) {
+            statPill(recipe.cuisine, icon: "globe", color: .orange)
+            Spacer()
+            statPill(recipe.difficulty, icon: "chart.bar.fill", color: difficultyColor)
+            Spacer()
+            statPill("\(recipe.calories) cal", icon: "flame.fill", color: .red)
+            Spacer()
+            statPill("\(recipe.servings) srv", icon: "person.2.fill", color: .blue)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func statPill(_ text: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(color)
+            }
+            Text(text)
+                .font(.system(.caption2, design: .rounded, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var ingredientsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(lang.t("Ingredients", "Malzemeler"), systemImage: "cart.fill")
-                .font(.headline)
+            HStack(spacing: 8) {
+                Image(systemName: "cart.fill")
+                    .foregroundStyle(.orange)
+                Text(lang.t("Ingredients", "Malzemeler"))
+                    .font(.system(.headline, design: .rounded))
+            }
 
             ForEach(recipe.ingredients) { ingredient in
                 HStack {
                     Circle()
-                        .fill(.orange)
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, .orange.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .frame(width: 6, height: 6)
                     Text(ingredient.name)
                         .font(.body)
                     Spacer()
                     Text("\(ingredient.quantity) \(ingredient.unit)")
-                        .font(.subheadline)
+                        .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
+                .padding(.vertical, 2)
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 18))
     }
 
     private var spicesCard: some View {
         let spices = recipe.allSpices
 
         return VStack(alignment: .leading, spacing: 14) {
-            Label(lang.t("Spices", "Baharatlar"), systemImage: "leaf.fill")
-                .font(.headline)
+            HStack(spacing: 8) {
+                Image(systemName: "leaf.fill")
+                    .foregroundStyle(.green)
+                Text(lang.t("Spices", "Baharatlar"))
+                    .font(.system(.headline, design: .rounded))
+            }
 
             if spices.isEmpty {
                 Text(lang.t("No spices needed", "Baharat gerekmiyor"))
@@ -143,73 +199,103 @@ struct RecipeDetailView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 18))
     }
 
     private var extraIngredientsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(lang.t("Extra Ingredients Needed", "Gerekli Ekstra Malzemeler"), systemImage: "bag.fill")
-                .font(.headline)
-                .foregroundStyle(.purple)
+            HStack(spacing: 8) {
+                Image(systemName: "bag.fill")
+                    .foregroundStyle(.purple)
+                Text(lang.t("Extra Ingredients Needed", "Gerekli Ekstra Malzemeler"))
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(.purple)
+            }
 
             FlowLayout(spacing: 6) {
                 ForEach(recipe.required_extra_ingredients, id: \.self) { item in
                     Text(item)
-                        .font(.subheadline.weight(.medium))
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.purple.opacity(0.12))
+                        .background(.purple.opacity(0.1))
                         .foregroundStyle(.purple)
                         .clipShape(.rect(cornerRadius: 10))
                 }
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 18))
     }
 
     private var stepsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(lang.t("Steps", "Adımlar"), systemImage: "list.number")
-                .font(.headline)
+            HStack(spacing: 8) {
+                Image(systemName: "list.number")
+                    .foregroundStyle(.blue)
+                Text(lang.t("Steps", "Adımlar"))
+                    .font(.system(.headline, design: .rounded))
+            }
 
             ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                 HStack(alignment: .top, spacing: 12) {
                     Text("\(index + 1)")
-                        .font(.caption.weight(.bold))
+                        .font(.system(.caption, design: .rounded, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(.orange)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            LinearGradient(
+                                colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .clipShape(Circle())
 
                     Text(step)
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
+                        .lineSpacing(2)
                 }
+                .padding(.vertical, 2)
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 18))
     }
 
     private var actionButtons: some View {
         Button {
             showCookingMode = true
         } label: {
-            Label(lang.t("Start Cooking Mode", "Pişirme Modunu Başlat"), systemImage: "flame.fill")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+            HStack(spacing: 10) {
+                Image(systemName: "flame.fill")
+                    .font(.title3)
+                Text(lang.t("Start Cooking Mode", "Pişirme Modunu Başlat"))
+                    .font(.system(.headline, design: .rounded))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(
+                LinearGradient(
+                    colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .foregroundStyle(.white)
+            .clipShape(.rect(cornerRadius: 16))
+            .shadow(color: .orange.opacity(0.3), radius: 10, y: 4)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.orange)
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(weight: .medium), trigger: showCookingMode)
     }
 
     private var difficultyColor: Color {
@@ -219,20 +305,6 @@ struct RecipeDetailView: View {
         case "hard", "zor": return .red
         default: return .secondary
         }
-    }
-
-    private func badge(_ text: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(text)
-                .font(.caption2.weight(.semibold))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(color.opacity(0.12))
-        .foregroundStyle(color)
-        .clipShape(.rect(cornerRadius: 8))
     }
 }
 
@@ -251,7 +323,7 @@ struct SpiceRow: View {
                         .foregroundStyle(.green)
 
                     Text(spice.name)
-                        .font(.subheadline.weight(.medium))
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
                         .foregroundStyle(.primary)
 
                     Spacer()
@@ -280,10 +352,10 @@ struct SpiceRow: View {
                     FlowLayout(spacing: 6) {
                         ForEach(spice.alternatives, id: \.self) { alt in
                             Text(alt)
-                                .font(.caption.weight(.medium))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(.orange.opacity(0.12))
+                                .background(.orange.opacity(0.1))
                                 .foregroundStyle(.orange)
                                 .clipShape(.rect(cornerRadius: 8))
                         }

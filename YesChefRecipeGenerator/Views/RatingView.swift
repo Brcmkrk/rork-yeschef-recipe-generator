@@ -17,8 +17,12 @@ struct RatingView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [Color(red: 1, green: 0.97, blue: 0.93), Color(.systemBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             VStack(spacing: 24) {
                 header
@@ -38,7 +42,7 @@ struct RatingView: View {
                         "\(currentIndex + 1) of \(recipes.count)",
                         "\(currentIndex + 1) / \(recipes.count)"
                     ))
-                    .font(.caption)
+                    .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
                 } else {
                     completionView
@@ -53,13 +57,13 @@ struct RatingView: View {
     private var header: some View {
         VStack(spacing: 8) {
             Text(lang.t("Rate Your Recipes", "Tarifleri Değerlendir"))
-                .font(.title2.weight(.bold))
+                .font(.system(.title2, design: .rounded, weight: .bold))
 
             Text(lang.t(
                 "Swipe through and rate each recipe",
                 "Her tarifi değerlendir"
             ))
-            .font(.subheadline)
+            .font(.system(.subheadline, design: .rounded))
             .foregroundStyle(.secondary)
 
             ProgressView(value: Double(currentIndex), total: Double(recipes.count))
@@ -73,32 +77,36 @@ struct RatingView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Text(recipe.cuisine)
-                    .font(.caption2.weight(.bold))
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
                     .textCase(.uppercase)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(.orange.opacity(0.15))
+                    .background(.orange.opacity(0.12))
                     .foregroundStyle(.orange)
                     .clipShape(.rect(cornerRadius: 6))
 
                 Text(recipe.difficulty)
-                    .font(.caption2.weight(.bold))
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
                     .textCase(.uppercase)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(.blue.opacity(0.15))
+                    .background(.blue.opacity(0.12))
                     .foregroundStyle(.blue)
                     .clipShape(.rect(cornerRadius: 6))
 
                 Spacer()
 
-                Text("\(recipe.calories) cal")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 3) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 9))
+                    Text("\(recipe.calories) cal")
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
             }
 
             Text(recipe.title)
-                .font(.title3.weight(.bold))
+                .font(.system(.title3, design: .rounded, weight: .bold))
                 .lineLimit(2)
 
             Text(recipe.description)
@@ -111,7 +119,7 @@ struct RatingView: View {
                     HStack(spacing: 6) {
                         ForEach(recipe.ingredients.prefix(6)) { ingredient in
                             Text(ingredient.name)
-                                .font(.caption.weight(.medium))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .background(Color(.tertiarySystemFill))
@@ -126,14 +134,24 @@ struct RatingView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 Text(lang.t("\(recipe.steps.count) steps", "\(recipe.steps.count) adım"))
-                    .font(.caption)
+                    .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(
+            ZStack {
+                Color(.secondarySystemGroupedBackground)
+                LinearGradient(
+                    colors: [.orange.opacity(0.03), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
         .clipShape(.rect(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
     }
 
     private func ratingButtons(_ recipe: Recipe) -> some View {
@@ -146,11 +164,17 @@ struct RatingView: View {
                     Image(systemName: "hand.thumbsdown.fill")
                         .font(.title2)
                     Text(lang.t("Not for me", "Bana göre değil"))
-                        .font(.caption.weight(.medium))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
-                .background(Color.red.opacity(0.1))
+                .background(
+                    LinearGradient(
+                        colors: [.red.opacity(0.06), .red.opacity(0.12)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .foregroundStyle(.red)
                 .clipShape(.rect(cornerRadius: 16))
             }
@@ -163,7 +187,7 @@ struct RatingView: View {
                     Image(systemName: "hand.raised.fill")
                         .font(.title2)
                     Text(lang.t("Skip", "Geç"))
-                        .font(.caption.weight(.medium))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
@@ -181,11 +205,17 @@ struct RatingView: View {
                     Image(systemName: "hand.thumbsup.fill")
                         .font(.title2)
                     Text(lang.t("Love it!", "Harika!"))
-                        .font(.caption.weight(.medium))
+                        .font(.system(.caption, design: .rounded, weight: .medium))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
-                .background(Color.green.opacity(0.1))
+                .background(
+                    LinearGradient(
+                        colors: [.green.opacity(0.06), .green.opacity(0.12)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .foregroundStyle(.green)
                 .clipShape(.rect(cornerRadius: 16))
             }
@@ -204,29 +234,39 @@ struct RatingView: View {
                 .animation(.spring(duration: 0.5, bounce: 0.6), value: showConfetti)
 
             Text(lang.t("All Done!", "Tamamlandı!"))
-                .font(.title.weight(.bold))
+                .font(.system(.title, design: .rounded, weight: .bold))
 
             Text(lang.t(
                 "You've rated all recipes. Head back to explore them!",
                 "Tüm tarifleri değerlendirdin. Keşfetmeye başla!"
             ))
-            .font(.body)
+            .font(.system(.body, design: .rounded))
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
 
             Button {
                 onDone()
             } label: {
-                Label(
-                    lang.t("View Recipes", "Tarifleri Gör"),
-                    systemImage: "arrow.right"
-                )
-                .font(.headline)
+                HStack(spacing: 10) {
+                    Text(lang.t("View Recipes", "Tarifleri Gör"))
+                        .font(.system(.headline, design: .rounded))
+                    Image(systemName: "arrow.right")
+                        .font(.subheadline.weight(.bold))
+                }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 18)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .foregroundStyle(.white)
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(color: .orange.opacity(0.3), radius: 10, y: 4)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
+            .buttonStyle(.plain)
             .padding(.top, 8)
 
             Spacer()

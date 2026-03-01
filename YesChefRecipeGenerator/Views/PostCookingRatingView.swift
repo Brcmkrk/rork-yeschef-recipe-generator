@@ -15,17 +15,36 @@ struct PostCookingRatingView: View {
             Spacer()
 
             VStack(spacing: 28) {
-                Image(systemName: "fork.knife.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.orange)
-                    .symbolEffect(.bounce, value: rated)
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.orange.opacity(0.12), .clear],
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 60
+                            )
+                        )
+                        .frame(width: 110, height: 110)
+
+                    Image(systemName: "fork.knife.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.bounce, value: rated)
+                }
 
                 VStack(spacing: 8) {
                     Text(lang.t("How was it?", "Nasıldı?"))
-                        .font(.title.weight(.bold))
+                        .font(.system(.title, design: .rounded, weight: .bold))
 
                     Text(recipe.title)
-                        .font(.subheadline)
+                        .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
@@ -46,10 +65,16 @@ struct PostCookingRatingView: View {
                                     .font(.system(size: 40))
                                     .scaleEffect(thumbsDownScale)
                                 Text(lang.t("Not great", "Pek değil"))
-                                    .font(.subheadline.weight(.medium))
+                                    .font(.system(.subheadline, design: .rounded, weight: .medium))
                             }
                             .frame(width: 130, height: 130)
-                            .background(Color.red.opacity(0.1))
+                            .background(
+                                LinearGradient(
+                                    colors: [.red.opacity(0.06), .red.opacity(0.12)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                             .foregroundStyle(.red)
                             .clipShape(.rect(cornerRadius: 24))
                         }
@@ -69,10 +94,16 @@ struct PostCookingRatingView: View {
                                     .font(.system(size: 40))
                                     .scaleEffect(thumbsUpScale)
                                 Text(lang.t("Loved it!", "Harikaydı!"))
-                                    .font(.subheadline.weight(.medium))
+                                    .font(.system(.subheadline, design: .rounded, weight: .medium))
                             }
                             .frame(width: 130, height: 130)
-                            .background(Color.green.opacity(0.1))
+                            .background(
+                                LinearGradient(
+                                    colors: [.green.opacity(0.06), .green.opacity(0.12)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                             .foregroundStyle(.green)
                             .clipShape(.rect(cornerRadius: 24))
                         }
@@ -90,7 +121,7 @@ struct PostCookingRatingView: View {
                         Text(ratedType == .like
                              ? lang.t("Added to favorites!", "Favorilere eklendi!")
                              : lang.t("Thanks for the feedback!", "Geri bildirim için teşekkürler!"))
-                            .font(.headline)
+                            .font(.system(.headline, design: .rounded))
                             .multilineTextAlignment(.center)
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -104,16 +135,35 @@ struct PostCookingRatingView: View {
                 onDone()
             } label: {
                 Text(rated ? lang.t("Done", "Tamam") : lang.t("Skip", "Geç"))
-                    .font(.headline)
+                    .font(.system(.headline, design: .rounded))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 18)
+                    .background(
+                        rated
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            : AnyShapeStyle(Color(.tertiarySystemFill))
+                    )
+                    .foregroundStyle(rated ? .white : .secondary)
+                    .clipShape(.rect(cornerRadius: 16))
+                    .shadow(color: rated ? .orange.opacity(0.3) : .clear, radius: 8, y: 3)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(rated ? .orange : Color(.tertiarySystemFill))
-            .foregroundStyle(rated ? .white : .secondary)
+            .buttonStyle(.plain)
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(
+            LinearGradient(
+                colors: [Color(red: 1, green: 0.97, blue: 0.93), Color(.systemGroupedBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
     }
 }

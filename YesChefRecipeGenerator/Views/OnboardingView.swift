@@ -9,10 +9,24 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.orange.opacity(0.08), Color(.systemBackground)],
-                startPoint: .top,
-                endPoint: .bottom
+            MeshGradient(
+                width: 3, height: 3,
+                points: [
+                    [0, 0], [0.5, 0], [1, 0],
+                    [0, 0.5], [0.5, 0.5], [1, 0.5],
+                    [0, 1], [0.5, 1], [1, 1]
+                ],
+                colors: [
+                    Color(red: 1, green: 0.95, blue: 0.9),
+                    Color(red: 1, green: 0.92, blue: 0.85),
+                    Color(red: 0.98, green: 0.94, blue: 0.9),
+                    Color(red: 1, green: 0.96, blue: 0.92),
+                    Color(.systemBackground),
+                    Color(red: 0.98, green: 0.93, blue: 0.88),
+                    Color(.systemBackground),
+                    Color(red: 0.99, green: 0.95, blue: 0.9),
+                    Color(.systemBackground)
+                ]
             )
             .ignoresSafeArea()
 
@@ -31,17 +45,38 @@ struct OnboardingView: View {
         VStack(spacing: 32) {
             Spacer()
 
-            Image(systemName: "globe")
-                .font(.system(size: 64))
-                .foregroundStyle(.orange)
-                .symbolEffect(.pulse, options: .repeating)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.orange.opacity(0.15), .clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 60
+                        )
+                    )
+                    .frame(width: 120, height: 120)
 
-            Text("Choose Your Language")
-                .font(.title.weight(.bold))
+                Image(systemName: "globe")
+                    .font(.system(size: 56))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .symbolEffect(.pulse, options: .repeating)
+            }
 
-            Text("Dilinizi Seçin")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 8) {
+                Text("Choose Your Language")
+                    .font(.system(.title, design: .rounded, weight: .bold))
+
+                Text("Dilinizi Seçin")
+                    .font(.system(.title3, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
 
             VStack(spacing: 12) {
                 ForEach(AppLanguage.allCases, id: \.rawValue) { language in
@@ -56,7 +91,7 @@ struct OnboardingView: View {
                                 .font(.title2)
 
                             Text(language.displayName)
-                                .font(.body.weight(.semibold))
+                                .font(.system(.body, design: .rounded, weight: .semibold))
 
                             Spacer()
 
@@ -70,18 +105,25 @@ struct OnboardingView: View {
                         .frame(maxWidth: .infinity)
                         .background(
                             selectedLanguage == language
-                                ? Color.orange.opacity(0.1)
-                                : Color(.secondarySystemGroupedBackground)
+                                ? AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: [.orange.opacity(0.08), .orange.opacity(0.15)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
                         )
                         .foregroundStyle(.primary)
                         .clipShape(.rect(cornerRadius: 14))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14)
                                 .strokeBorder(
-                                    selectedLanguage == language ? Color.orange.opacity(0.4) : .clear,
-                                    lineWidth: 2
+                                    selectedLanguage == language ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.2),
+                                    lineWidth: 1.5
                                 )
                         )
+                        .shadow(color: selectedLanguage == language ? .orange.opacity(0.1) : .clear, radius: 4, y: 1)
                     }
                     .buttonStyle(.plain)
                 }
@@ -89,7 +131,6 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
 
             Spacer()
-
             swipeHint
         }
         .padding(16)
@@ -106,13 +147,13 @@ struct OnboardingView: View {
 
             VStack(spacing: 12) {
                 Text("YesChef!")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
 
                 Text(lang.t(
                     "Your personal AI recipe generator",
                     "Kişisel yapay zeka tarif oluşturucunuz"
                 ))
-                .font(.title3)
+                .font(.system(.title3, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             }
@@ -149,7 +190,7 @@ struct OnboardingView: View {
                 .font(.system(size: 80))
 
             Text(lang.t("Packed with Features", "Özelliklerle Dolu"))
-                .font(.title.weight(.bold))
+                .font(.system(.title, design: .rounded, weight: .bold))
 
             VStack(alignment: .leading, spacing: 16) {
                 featureRow(
@@ -188,13 +229,13 @@ struct OnboardingView: View {
                     .font(.system(size: 80))
 
                 Text(lang.t("Ready to Cook?", "Pişirmeye Hazır mısın?"))
-                    .font(.title.weight(.bold))
+                    .font(.system(.title, design: .rounded, weight: .bold))
 
                 Text(lang.t(
                     "Let's create some amazing recipes together!",
                     "Haydi birlikte harika tarifler oluşturalım!"
                 ))
-                .font(.body)
+                .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             }
@@ -202,16 +243,26 @@ struct OnboardingView: View {
             Button {
                 onComplete()
             } label: {
-                Label(
-                    lang.t("Let's Go!", "Haydi Başlayalım!"),
-                    systemImage: "arrow.right"
-                )
-                .font(.headline)
+                HStack(spacing: 10) {
+                    Text(lang.t("Let's Go!", "Haydi Başlayalım!"))
+                        .font(.system(.headline, design: .rounded))
+                    Image(systemName: "arrow.right")
+                        .font(.subheadline.weight(.bold))
+                }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 18)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .foregroundStyle(.white)
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(color: .orange.opacity(0.35), radius: 12, y: 4)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
+            .buttonStyle(.plain)
             .padding(.horizontal, 24)
 
             Spacer()
@@ -221,16 +272,25 @@ struct OnboardingView: View {
 
     private func featureRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(color)
-                .frame(width: 44, height: 44)
-                .background(color.opacity(0.12))
-                .clipShape(.rect(cornerRadius: 12))
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.15), color.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -243,7 +303,7 @@ struct OnboardingView: View {
             Image(systemName: "hand.draw.fill")
                 .font(.caption)
             Text(lang.t("Swipe to continue", "Devam etmek için kaydır"))
-                .font(.caption)
+                .font(.system(.caption, design: .rounded))
         }
         .foregroundStyle(.tertiary)
         .padding(.bottom, 16)

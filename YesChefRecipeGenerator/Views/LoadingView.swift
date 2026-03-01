@@ -82,8 +82,12 @@ struct LoadingView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [Color(red: 1, green: 0.97, blue: 0.93), Color(.systemBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             GeometryReader { geo in
                 ZStack {
@@ -127,18 +131,19 @@ struct LoadingView: View {
 
             VStack {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(lang.t("🎯 Score", "🎯 Skor"))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "target")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
                         Text("\(game.score)")
-                            .font(.title.weight(.bold))
+                            .font(.system(.title2, design: .rounded, weight: .bold))
                             .foregroundStyle(.orange)
                             .contentTransition(.numericText())
                     }
-                    .padding(12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .background(.ultraThinMaterial)
-                    .clipShape(.rect(cornerRadius: 12))
+                    .clipShape(.rect(cornerRadius: 14))
 
                     Spacer()
 
@@ -156,7 +161,7 @@ struct LoadingView: View {
 
                 VStack(spacing: 12) {
                     Text(lang.t("Tap the falling food!", "Düşen yemekleri yakala!"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.primary)
 
                     HStack(spacing: 6) {
@@ -169,7 +174,7 @@ struct LoadingView: View {
                     }
 
                     Text(lang.t("Our chef is preparing your recipes", "Şefimiz tariflerinizi hazırlıyor"))
-                        .font(.caption)
+                        .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.bottom, 16)
@@ -179,7 +184,7 @@ struct LoadingView: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                     Text("YesChef")
-                        .font(.caption2.weight(.medium))
+                        .font(.system(.caption2, design: .rounded, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
                 .padding(.bottom, 32)
@@ -200,10 +205,10 @@ struct LoadingView: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(lang.t("Recipes are ready!", "Tarifler hazır!"))
-                                    .font(.subheadline.weight(.bold))
+                                    .font(.system(.subheadline, design: .rounded, weight: .bold))
                                     .foregroundStyle(.primary)
                                 Text(lang.t("Tap to view your recipes", "Tariflerini görmek için dokun"))
-                                    .font(.caption)
+                                    .font(.system(.caption, design: .rounded))
                                     .foregroundStyle(.secondary)
                             }
 

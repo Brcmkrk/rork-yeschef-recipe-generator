@@ -6,11 +6,12 @@ struct ResultsView: View {
     @Environment(LikesStore.self) private var likesStore
     @Environment(LanguageManager.self) private var lang
     @State private var selectedRecipeId: String?
+    @State private var appeared: Bool = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: 32) {
                     if !viewModel.exactMatchRecipes.isEmpty {
                         recipeSection(
                             title: lang.t("Exact Match", "Birebir Eşleşme"),
@@ -31,20 +32,30 @@ struct ResultsView: View {
                         )
                     }
                 }
-                .padding(.vertical, 16)
+                .padding(.vertical, 20)
             }
             .onAppear {
                 let allRecipes = viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes
                 likesStore.fetchGlobalCounts(for: allRecipes)
+                withAnimation(.spring(duration: 0.5).delay(0.1)) {
+                    appeared = true
+                }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color.orange.opacity(0.02), Color(.systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .overlay {
                 if viewModel.isTranslating {
                     VStack(spacing: 12) {
                         ProgressView()
                             .controlSize(.large)
                         Text(lang.t("Translating...", "Çevriliyor..."))
-                            .font(.subheadline.weight(.medium))
+                            .font(.system(.subheadline, design: .rounded, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -89,14 +100,19 @@ struct ResultsView: View {
         recipes: [Recipe]
     ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.12))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(color)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.title3.weight(.bold))
+                        .font(.system(.title3, design: .rounded, weight: .bold))
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -106,10 +122,13 @@ struct ResultsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
-                    ForEach(recipes) { recipe in
+                    ForEach(Array(recipes.enumerated()), id: \.element.id) { index, recipe in
                         RecipeCardView(recipe: recipe) {
                             selectedRecipeId = recipe.id
                         }
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 20)
+                        .animation(.spring(response: 0.5).delay(Double(index) * 0.08), value: appeared)
                     }
                 }
             }
@@ -133,37 +152,52 @@ struct RecipeCardView: View {
         }
     }
 
+    private var cardGradient: LinearGradient {
+        switch recipe.difficulty.lowercased() {
+        case "easy", "kolay":
+            return LinearGradient(colors: [.green.opacity(0.04), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case "hard", "zor":
+            return LinearGradient(colors: [.red.opacity(0.04), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+        default:
+            return LinearGradient(colors: [.orange.opacity(0.04), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
                     Text(recipe.cuisine)
-                        .font(.caption2.weight(.bold))
+                        .font(.system(.caption2, design: .rounded, weight: .bold))
                         .textCase(.uppercase)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(.orange.opacity(0.15))
+                        .background(.orange.opacity(0.12))
                         .foregroundStyle(.orange)
                         .clipShape(.rect(cornerRadius: 6))
 
                     Text(recipe.difficulty)
-                        .font(.caption2.weight(.bold))
+                        .font(.system(.caption2, design: .rounded, weight: .bold))
                         .textCase(.uppercase)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(difficultyColor.opacity(0.15))
+                        .background(difficultyColor.opacity(0.12))
                         .foregroundStyle(difficultyColor)
                         .clipShape(.rect(cornerRadius: 6))
 
                     Spacer()
 
-                    Text("\(recipe.calories) cal")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 9))
+                        Text("\(recipe.calories)")
+                            .font(.system(.caption2, design: .rounded, weight: .semibold))
+                    }
+                    .foregroundStyle(.secondary)
                 }
 
                 Text(recipe.title)
-                    .font(.headline)
+                    .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -195,15 +229,15 @@ struct RecipeCardView: View {
                         }
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "heart.fill" : "heart")
                                 .font(.subheadline)
-                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .green : .secondary)
+                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .pink : .secondary)
                                 .contentTransition(.symbolEffect(.replace))
                             let likeCount = likesStore.likesCount(for: recipe.id)
                             if likeCount > 0 {
                                 Text("\(likeCount)")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .green : .secondary)
+                                    .font(.system(.caption2, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .pink : .secondary)
                                     .contentTransition(.numericText())
                             }
                         }
@@ -224,7 +258,7 @@ struct RecipeCardView: View {
                             let dislikeCount = likesStore.dislikesCount(for: recipe.id)
                             if dislikeCount > 0 {
                                 Text("\(dislikeCount)")
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.system(.caption2, design: .rounded, weight: .semibold))
                                     .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
                                     .contentTransition(.numericText())
                             }
@@ -235,15 +269,25 @@ struct RecipeCardView: View {
 
                     Spacer()
 
-                    Text(lang.t("View", "Gör"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                    HStack(spacing: 4) {
+                        Text(lang.t("View", "Gör"))
+                            .font(.system(.caption, design: .rounded, weight: .semibold))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundStyle(.orange)
                 }
             }
             .padding(16)
-            .frame(width: 260, height: 240)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(.rect(cornerRadius: 16))
+            .frame(width: 270, height: 250)
+            .background(
+                ZStack {
+                    Color(.secondarySystemGroupedBackground)
+                    cardGradient
+                }
+            )
+            .clipShape(.rect(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
     }

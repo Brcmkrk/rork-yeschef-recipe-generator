@@ -8,12 +8,13 @@ struct HomeView: View {
     @State private var pendingShowResults: Bool = false
     @FocusState private var isEditorFocused: Bool
     @Environment(LanguageManager.self) private var lang
+    @State private var headerPulse: Bool = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    headerSection
+                    heroHeader
                     ingredientsSection
                     cuisineSection
                     servingsSection
@@ -30,13 +31,30 @@ struct HomeView: View {
                         .fontWeight(.semibold)
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(
+                LinearGradient(
+                    colors: [Color(.systemBackground), Color.orange.opacity(0.03), Color(.systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .onChange(of: lang.current) { _, newValue in
                 viewModel.translateIfNeeded(to: newValue.rawValue)
             }
-            .onAppear { viewModel.language = lang.current.rawValue }
-            .navigationTitle("YesChef")
-            .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                viewModel.language = lang.current.rawValue
+                headerPulse = true
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("YesChef")
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .foregroundStyle(.orange)
+                }
+            }
             .fullScreenCover(isPresented: $showLoading, onDismiss: {
                 if pendingShowResults {
                     pendingShowResults = false
@@ -66,26 +84,54 @@ struct HomeView: View {
         }
     }
 
-    private var headerSection: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "frying.pan.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.orange)
-                .symbolEffect(.bounce, value: viewModel.isLoading)
+    private var heroHeader: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.orange.opacity(0.15), .orange.opacity(0.03), .clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 80
+                        )
+                    )
+                    .frame(width: 120, height: 120)
+                    .scaleEffect(headerPulse ? 1.05 : 0.95)
+                    .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: headerPulse)
+
+                Image(systemName: "frying.pan.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.45, blue: 0.15)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .symbolEffect(.bounce, value: viewModel.isLoading)
+            }
 
             Text(lang.t("What's in your kitchen?", "Mutfağında ne var?"))
-                .font(.title3.weight(.medium))
+                .font(.system(.title2, design: .rounded, weight: .bold))
+                .foregroundStyle(.primary)
+
+            Text(lang.t("Let's cook something delicious", "Haydi lezzetli bir şeyler pişirelim"))
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 28)
     }
 
     private var ingredientsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(lang.t("Ingredients", "Malzemeler"), systemImage: "carrot.fill")
-                .font(.headline)
-                .foregroundStyle(.primary)
+            HStack(spacing: 6) {
+                Image(systemName: "carrot.fill")
+                    .foregroundStyle(.orange)
+                Text(lang.t("Ingredients", "Malzemeler"))
+                    .font(.system(.headline, design: .rounded))
+            }
 
             ZStack(alignment: .topLeading) {
                 if viewModel.ingredientsText.isEmpty {
@@ -106,40 +152,66 @@ struct HomeView: View {
                     .padding(.vertical, 8)
             }
             .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(.rect(cornerRadius: 14))
+            .clipShape(.rect(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(
+                        isEditorFocused ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.3),
+                        lineWidth: 1
+                    )
+            )
+            .animation(.smooth(duration: 0.2), value: isEditorFocused)
 
             Button {
                 withAnimation(.spring(duration: 0.3)) {
                     viewModel.fillRandom()
                 }
             } label: {
-                Label(lang.t("I'm Feeling Lucky", "Şansımı Deneyeyim"), systemImage: "dice.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "dice.fill")
+                        .font(.subheadline)
+                    Text(lang.t("I'm Feeling Lucky", "Şansımı Deneyeyim"))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        colors: [.orange.opacity(0.08), .orange.opacity(0.15)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .foregroundStyle(.orange)
+                .clipShape(.rect(cornerRadius: 12))
             }
-            .buttonStyle(.bordered)
-            .tint(.orange)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 24)
+        .padding(.bottom, 28)
     }
 
     private var cuisineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label(lang.t("Cuisines", "Mutfaklar"), systemImage: "globe")
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.blue)
+                    Text(lang.t("Cuisines", "Mutfaklar"))
+                        .font(.system(.headline, design: .rounded))
+                }
 
                 Spacer()
 
-                Button(lang.t("All", "Tümü")) { viewModel.selectAllCuisines() }
-                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 12) {
+                    Button(lang.t("All", "Tümü")) { viewModel.selectAllCuisines() }
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.orange)
 
-                Text("·")
-                    .foregroundStyle(.tertiary)
-
-                Button(lang.t("Clear", "Temizle")) { viewModel.clearCuisines() }
-                    .font(.subheadline.weight(.medium))
+                    Button(lang.t("Clear", "Temizle")) { viewModel.clearCuisines() }
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
@@ -156,15 +228,19 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 24)
+        .padding(.bottom, 28)
     }
 
     private var servingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(lang.t("Servings", "Porsiyon"), systemImage: "person.2.fill")
-                .font(.headline)
+            HStack(spacing: 6) {
+                Image(systemName: "person.2.fill")
+                    .foregroundStyle(.purple)
+                Text(lang.t("Servings", "Porsiyon"))
+                    .font(.system(.headline, design: .rounded))
+            }
 
-            HStack(spacing: 0) {
+            HStack(spacing: 6) {
                 ForEach(1...6, id: \.self) { count in
                     Button {
                         withAnimation(.spring(duration: 0.25)) {
@@ -172,19 +248,30 @@ struct HomeView: View {
                         }
                     } label: {
                         Text("\(count)")
-                            .font(.body.weight(.semibold))
+                            .font(.system(.body, design: .rounded, weight: .bold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 14)
                             .background(
                                 viewModel.servings == count
-                                    ? Color.orange
-                                    : Color(.secondarySystemGroupedBackground)
+                                    ? AnyShapeStyle(
+                                        LinearGradient(
+                                            colors: [.orange, Color(red: 0.9, green: 0.4, blue: 0.1)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
                             )
                             .foregroundStyle(viewModel.servings == count ? .white : .primary)
+                            .clipShape(.rect(cornerRadius: 12))
+                            .shadow(
+                                color: viewModel.servings == count ? .orange.opacity(0.3) : .clear,
+                                radius: 6, y: 2
+                            )
                     }
+                    .sensoryFeedback(.selection, trigger: viewModel.servings)
                 }
             }
-            .clipShape(.rect(cornerRadius: 12))
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
@@ -201,13 +288,31 @@ struct HomeView: View {
                     recipesReady = true
                 }
             } label: {
-                Label(lang.t("Generate Recipes", "Tarif Oluştur"), systemImage: "sparkles")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.title3)
+                    Text(lang.t("Generate Recipes", "Tarif Oluştur"))
+                        .font(.system(.headline, design: .rounded))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(
+                    LinearGradient(
+                        colors: viewModel.canGenerate
+                            ? [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)]
+                            : [Color(.tertiarySystemFill), Color(.tertiarySystemFill)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .foregroundStyle(viewModel.canGenerate ? .white : .secondary)
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(
+                    color: viewModel.canGenerate ? .orange.opacity(0.35) : .clear,
+                    radius: 12, y: 4
+                )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
+            .buttonStyle(.plain)
             .disabled(!viewModel.canGenerate)
             .sensoryFeedback(.impact(weight: .medium), trigger: viewModel.isLoading)
 
@@ -226,7 +331,7 @@ struct HomeView: View {
                             recipesReady = true
                         }
                     }
-                    .font(.footnote.weight(.semibold))
+                    .font(.system(.footnote, design: .rounded, weight: .semibold))
                 }
             }
         }
@@ -258,19 +363,32 @@ struct CuisineChipView: View {
             HStack(spacing: 5) {
                 Image(systemName: cuisine.icon)
                     .font(.caption)
+                    .foregroundStyle(isSelected ? .orange : .secondary)
                 Text(displayName)
-                    .font(.subheadline.weight(.medium))
+                    .font(.system(.subheadline, design: .rounded, weight: .medium))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(isSelected ? Color.orange.opacity(0.15) : Color(.secondarySystemGroupedBackground))
-            .foregroundStyle(isSelected ? .orange : .primary)
-            .clipShape(.rect(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(isSelected ? Color.orange.opacity(0.4) : Color.clear, lineWidth: 1.5)
+            .padding(.vertical, 11)
+            .background(
+                isSelected
+                    ? AnyShapeStyle(
+                        LinearGradient(
+                            colors: [.orange.opacity(0.1), .orange.opacity(0.18)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
             )
+            .foregroundStyle(isSelected ? .orange : .primary)
+            .clipShape(.rect(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(isSelected ? Color.orange.opacity(0.5) : Color(.separator).opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: isSelected ? .orange.opacity(0.1) : .clear, radius: 4, y: 1)
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: isSelected)
     }
 }
