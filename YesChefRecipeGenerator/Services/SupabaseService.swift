@@ -170,14 +170,28 @@ class SupabaseService {
 
     func upsertTriedRecipe(recipe: Recipe) async throws {
         guard isConfigured else {
-            print("[SupabaseService] tried_recipes: not configured")
+            print("[SupabaseService] tried_recipes: not configured, baseURL=\(baseURL), apiKey length=\(apiKey.count)")
             return
         }
-        let recipeJSON = (try? JSONEncoder().encode(recipe)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let recipeJSON: String
+        do {
+            let data = try JSONEncoder().encode(recipe)
+            recipeJSON = String(data: data, encoding: .utf8) ?? "{}"
+        } catch {
+            print("[SupabaseService] tried_recipes: encode error: \(error)")
+            return
+        }
 
-        let existing = try await fetchTriedRecipe(recipeId: recipe.id)
+        let existing = try? await fetchTriedRecipe(recipeId: recipe.id)
         if existing != nil {
-            print("[SupabaseService] tried_recipes: already exists for \(recipe.id)")
+            let body: [String: String] = ["recipe_data": recipeJSON]
+            guard let bodyData = try? JSONEncoder().encode(body) else { return }
+            let query = "device_id=eq.\(deviceId)&recipe_id=eq.\(recipe.id)"
+            guard let request = makeRequest(path: "tried_recipes", method: "PATCH", body: bodyData, queryParams: query) else { return }
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse {
+                print("[SupabaseService] tried_recipes PATCH: \(http.statusCode)")
+            }
             return
         }
 
@@ -190,15 +204,18 @@ class SupabaseService {
             print("[SupabaseService] tried_recipes: failed to encode insert")
             return
         }
-        guard var request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else {
+        guard let request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else {
             print("[SupabaseService] tried_recipes: failed to create request")
             return
         }
-        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-            let body = String(data: data, encoding: .utf8) ?? "unknown"
-            print("[SupabaseService] tried_recipes POST failed: \(http.statusCode) - \(body)")
+        if let http = response as? HTTPURLResponse {
+            if http.statusCode >= 400 {
+                let respBody = String(data: data, encoding: .utf8) ?? "unknown"
+                print("[SupabaseService] tried_recipes POST failed: \(http.statusCode) - \(respBody)")
+            } else {
+                print("[SupabaseService] tried_recipes POST success: \(http.statusCode) for recipe \(recipe.id)")
+            }
         }
     }
 

@@ -17,7 +17,15 @@ class TriedRecipesStore {
             recipes.insert(recipe, at: 0)
             saveLocal()
         }
-        Task { try? await SupabaseService.shared.upsertTriedRecipe(recipe: recipe) }
+        let recipeCopy = recipe
+        Task {
+            do {
+                try await SupabaseService.shared.upsertTriedRecipe(recipe: recipeCopy)
+                print("[TriedRecipesStore] Successfully saved tried recipe: \(recipeCopy.id)")
+            } catch {
+                print("[TriedRecipesStore] Failed to save tried recipe: \(error.localizedDescription)")
+            }
+        }
     }
 
     func remove(_ recipe: Recipe) {

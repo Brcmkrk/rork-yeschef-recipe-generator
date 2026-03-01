@@ -49,6 +49,7 @@ struct ResultsView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.ultraThinMaterial)
+                    .allowsHitTesting(true)
                 }
             }
             .navigationTitle(lang.t("Your Recipes", "Tariflerin"))

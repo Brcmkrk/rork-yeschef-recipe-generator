@@ -5,6 +5,7 @@ struct HomeView: View {
     @State private var showResults: Bool = false
     @State private var showLoading: Bool = false
     @State private var recipesReady: Bool = false
+    @State private var pendingShowResults: Bool = false
     @FocusState private var isEditorFocused: Bool
     @Environment(LanguageManager.self) private var lang
 
@@ -36,20 +37,26 @@ struct HomeView: View {
             .onAppear { viewModel.language = lang.current.rawValue }
             .navigationTitle("YesChef")
             .navigationBarTitleDisplayMode(.large)
-            .fullScreenCover(isPresented: $showLoading) {
+            .fullScreenCover(isPresented: $showLoading, onDismiss: {
+                if pendingShowResults {
+                    pendingShowResults = false
+                    showResults = true
+                }
+            }) {
                 LoadingView(
                     recipesReady: recipesReady,
                     onCancel: {
                         viewModel.cancelGeneration()
+                        pendingShowResults = false
                         showLoading = false
                         recipesReady = false
                     },
                     onShowRecipes: {
-                        showLoading = false
                         recipesReady = false
                         if viewModel.hasResults && viewModel.errorMessage == nil {
-                            showResults = true
+                            pendingShowResults = true
                         }
+                        showLoading = false
                     }
                 )
             }
