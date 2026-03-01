@@ -5,6 +5,8 @@ class RecipeViewModel {
     var ingredientsText: String = ""
     var selectedCuisines: Set<Cuisine> = []
     var servings: Int = 2
+    var exactMatchCount: Int = 2
+    var extraIngredientCount: Int = 2
     var exactMatchRecipes: [Recipe] = []
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
@@ -94,6 +96,10 @@ class RecipeViewModel {
         isLoading = false
     }
 
+    func refreshRecipes() async {
+        await generateRecipes()
+    }
+
     func generateRecipes() async {
         guard canGenerate else { return }
 
@@ -106,7 +112,9 @@ class RecipeViewModel {
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
                 servings: servings,
-                language: language
+                language: language,
+                exactCount: exactMatchCount,
+                extraCount: extraIngredientCount
             )
 
             exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }

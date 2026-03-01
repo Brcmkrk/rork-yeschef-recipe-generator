@@ -18,6 +18,7 @@ struct HomeView: View {
                     ingredientsSection
                     cuisineSection
                     servingsSection
+                    recipeMixSection
                     generateButton
                 }
                 .padding(.bottom, 40)
@@ -275,6 +276,82 @@ struct HomeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
+    }
+
+    private var recipeMixSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundStyle(.mint)
+                Text(lang.t("Recipe Mix", "Tarif Karışımı"))
+                    .font(.system(.headline, design: .rounded))
+            }
+
+            Text(lang.t(
+                "How many recipes with only your ingredients vs. with extras?",
+                "Kaç tarif sadece senin malzemelerinle, kaçı ekstra malzemelerle olsun?"
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                recipeMixOption(exact: 4, extra: 0)
+                recipeMixOption(exact: 3, extra: 1)
+                recipeMixOption(exact: 2, extra: 2)
+                recipeMixOption(exact: 1, extra: 3)
+                recipeMixOption(exact: 0, extra: 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 32)
+    }
+
+    private func recipeMixOption(exact: Int, extra: Int) -> some View {
+        let isSelected = viewModel.exactMatchCount == exact && viewModel.extraIngredientCount == extra
+        return Button {
+            withAnimation(.spring(duration: 0.25)) {
+                viewModel.exactMatchCount = exact
+                viewModel.extraIngredientCount = extra
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Text("\(exact)/\(extra)")
+                    .font(.system(.body, design: .rounded, weight: .bold))
+                HStack(spacing: 2) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(isSelected ? .green : .secondary.opacity(0.5))
+                    Text("\(exact)")
+                        .font(.system(.caption2, design: .rounded, weight: .medium))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 8))
+                        .foregroundStyle(isSelected ? .purple : .secondary.opacity(0.5))
+                    Text("\(extra)")
+                        .font(.system(.caption2, design: .rounded, weight: .medium))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                isSelected
+                    ? AnyShapeStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.9, green: 0.4, blue: 0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
+            )
+            .foregroundStyle(isSelected ? .white : .primary)
+            .clipShape(.rect(cornerRadius: 12))
+            .shadow(
+                color: isSelected ? .orange.opacity(0.3) : .clear,
+                radius: 6, y: 2
+            )
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: isSelected)
     }
 
     private var generateButton: some View {

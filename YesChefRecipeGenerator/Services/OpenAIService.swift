@@ -47,14 +47,16 @@ class OpenAIService {
         ingredients: [String],
         cuisines: [String],
         servings: Int,
-        language: String = "en"
+        language: String = "en",
+        exactCount: Int = 2,
+        extraCount: Int = 2
     ) async throws -> RecipeResponse {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
 
-        let systemPrompt = buildSystemPrompt(language: language)
-        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language)
+        let systemPrompt = buildSystemPrompt(language: language, exactCount: exactCount, extraCount: extraCount)
+        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language, totalCount: exactCount + extraCount)
 
         let request = OpenAIChatRequest(
             model: "gpt-4o-mini",
@@ -106,7 +108,7 @@ class OpenAIService {
         }
     }
 
-    private func buildSystemPrompt(language: String) -> String {
+    private func buildSystemPrompt(language: String, exactCount: Int, extraCount: Int) -> String {
         let isTurkish = language == "tr"
 
         if isTurkish {
@@ -143,7 +145,7 @@ class OpenAIService {
             }
 
             Kurallar:
-            - Tam olarak 4 exact_match_recipes ve 4 extra_ingredient_recipes döndür
+            - Tam olarak \(exactCount) exact_match_recipes ve \(extraCount) extra_ingredient_recipes döndür
             - exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır. exact_match_recipes için required_extra_ingredients boş dizi [] olmalı.
             - ÖNEMLİ: extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır. required_extra_ingredients ASLA BOŞ OLMAMALI, her extra_ingredient tarifinde mutlaka 2-4 ek malzeme olmalı (örn: ["krema", "mantar", "parmesan"])
             - extra_ingredient_recipes'teki ek malzemeler kullanıcının vermediği yeni malzemeler olmalı
@@ -188,7 +190,7 @@ class OpenAIService {
             }
 
             Rules:
-            - Return exactly 4 exact_match_recipes and 4 extra_ingredient_recipes
+            - Return exactly \(exactCount) exact_match_recipes and \(extraCount) extra_ingredient_recipes
             - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter). required_extra_ingredients must be an empty array [] for these.
             - IMPORTANT: extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients. required_extra_ingredients must NEVER be empty for these recipes - always include 2-4 extra ingredients the user didn't provide (e.g. ["cream", "mushrooms", "parmesan"])
             - The extra ingredients should be ingredients NOT in the user's list
@@ -204,13 +206,13 @@ class OpenAIService {
         }
     }
 
-    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int, language: String) -> String {
+    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int, language: String, totalCount: Int) -> String {
         let ingredientList = ingredients.joined(separator: ", ")
         let cuisineList = cuisines.isEmpty ? (language == "tr" ? "Herhangi bir mutfak" : "Any cuisine") : cuisines.joined(separator: ", ")
 
         if language == "tr" {
             return """
-            Bu malzemeleri kullanarak 8 tarif oluştur: \(ingredientList)
+            Bu malzemeleri kullanarak \(totalCount) tarif oluştur: \(ingredientList)
 
             Mutfak tercihleri: \(cuisineList)
             Porsiyon: \(servings)
@@ -219,7 +221,7 @@ class OpenAIService {
             """
         } else {
             return """
-            Generate 8 recipes using these ingredients: \(ingredientList)
+            Generate \(totalCount) recipes using these ingredients: \(ingredientList)
 
             Cuisine preferences: \(cuisineList)
             Servings: \(servings)
