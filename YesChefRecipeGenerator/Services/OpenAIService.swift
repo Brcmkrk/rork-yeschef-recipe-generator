@@ -49,14 +49,15 @@ class OpenAIService {
         servings: Int,
         language: String = "en",
         exactCount: Int = 2,
-        extraCount: Int = 2
+        extraCount: Int = 2,
+        excludeTitles: [String] = []
     ) async throws -> RecipeResponse {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
 
         let systemPrompt = buildSystemPrompt(language: language, exactCount: exactCount, extraCount: extraCount)
-        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language, totalCount: exactCount + extraCount)
+        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language, totalCount: exactCount + extraCount, excludeTitles: excludeTitles)
 
         let request = OpenAIChatRequest(
             model: "gpt-4o-mini",
@@ -206,9 +207,21 @@ class OpenAIService {
         }
     }
 
-    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int, language: String, totalCount: Int) -> String {
+    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int, language: String, totalCount: Int, excludeTitles: [String] = []) -> String {
         let ingredientList = ingredients.joined(separator: ", ")
         let cuisineList = cuisines.isEmpty ? (language == "tr" ? "Herhangi bir mutfak" : "Any cuisine") : cuisines.joined(separator: ", ")
+
+        let excludeNote: String
+        if !excludeTitles.isEmpty {
+            let titles = excludeTitles.joined(separator: ", ")
+            if language == "tr" {
+                excludeNote = "\n\nÖNEMLİ: Şu tarifleri TEKRAR VERME, tamamen farklı tarifler oluştur: \(titles)"
+            } else {
+                excludeNote = "\n\nIMPORTANT: Do NOT repeat these recipes, generate completely different ones: \(titles)"
+            }
+        } else {
+            excludeNote = ""
+        }
 
         if language == "tr" {
             return """
@@ -217,7 +230,7 @@ class OpenAIService {
             Mutfak tercihleri: \(cuisineList)
             Porsiyon: \(servings)
 
-            Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI — baharat isimleri, adımlar, malzeme isimleri, birimler dahil tamamı Türkçe.
+            Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI — baharat isimleri, adımlar, malzeme isimleri, birimler dahil tamamı Türkçe.\(excludeNote)
             """
         } else {
             return """
@@ -226,7 +239,7 @@ class OpenAIService {
             Cuisine preferences: \(cuisineList)
             Servings: \(servings)
 
-            Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting. All content in English.
+            Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting. All content in English.\(excludeNote)
             """
         }
     }

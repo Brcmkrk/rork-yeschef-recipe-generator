@@ -13,6 +13,7 @@ class RecipeViewModel {
     var errorMessage: String?
     var hasResults: Bool = false
     private var generationTask: Task<Void, Never>?
+    private var previousRecipeTitles: [String] = []
 
     var ingredientsList: [String] {
         ingredientsText
@@ -97,11 +98,17 @@ class RecipeViewModel {
     }
 
     func refreshRecipes() async {
-        await generateRecipes()
+        let currentTitles = (exactMatchRecipes + extraIngredientRecipes).map { $0.title }
+        previousRecipeTitles.append(contentsOf: currentTitles)
+        await generateRecipes(excludeTitles: previousRecipeTitles)
     }
 
-    func generateRecipes() async {
+    func generateRecipes(excludeTitles: [String] = []) async {
         guard canGenerate else { return }
+
+        if excludeTitles.isEmpty {
+            previousRecipeTitles = []
+        }
 
         isLoading = true
         errorMessage = nil
@@ -114,7 +121,8 @@ class RecipeViewModel {
                 servings: servings,
                 language: language,
                 exactCount: exactMatchCount,
-                extraCount: extraIngredientCount
+                extraCount: extraIngredientCount,
+                excludeTitles: excludeTitles
             )
 
             exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
