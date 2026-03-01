@@ -44,11 +44,12 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
     }
 
     static func == (lhs: Recipe, rhs: Recipe) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id && lhs.title == rhs.title && lhs.language == rhs.language
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(language)
     }
 }
 
