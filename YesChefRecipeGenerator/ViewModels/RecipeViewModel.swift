@@ -120,12 +120,15 @@ class RecipeViewModel {
             text += "\n  • \(ingredient.quantity) \(ingredient.unit) \(ingredient.name)"
         }
 
-        if !recipe.spices_common.isEmpty {
-            text += "\n\n🧂 Common Spices:\n  \(recipe.spices_common.joined(separator: ", "))"
-        }
-
-        if !recipe.spices_optional.isEmpty {
-            text += "\n\n✨ Optional Spices:\n  \(recipe.spices_optional.joined(separator: ", "))"
+        let allSpices = recipe.allSpices
+        if !allSpices.isEmpty {
+            text += "\n\n🧂 Spices:"
+            for spice in allSpices {
+                text += "\n  • \(spice.name)"
+                if !spice.alternatives.isEmpty {
+                    text += " (→ \(spice.alternatives.joined(separator: ", ")))"
+                }
+            }
         }
 
         if !recipe.required_extra_ingredients.isEmpty {

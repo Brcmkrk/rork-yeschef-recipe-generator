@@ -63,7 +63,7 @@ class OpenAIService {
                 OpenAIChatMessage(role: "user", content: userPrompt)
             ],
             temperature: 0.8,
-            max_tokens: 4000
+            max_tokens: 5000
         )
 
         var urlRequest = URLRequest(url: url)
@@ -112,7 +112,7 @@ class OpenAIService {
             return """
             Sen profesyonel bir şef ve tarif oluşturucusun. SADECE geçerli JSON ile yanıt vermelisin, markdown yok, ekstra metin yok, açıklama yok.
 
-            TÜMÜ Türkçe olmalı — tarif başlıkları, açıklamalar, malzeme adları, baharatlar, adımlar, zorluk seviyesi, mutfak adı — her şey Türkçe.
+            TÜMÜ Türkçe olmalı — tarif başlıkları, açıklamalar, malzeme adları, birim adları, baharat adları, adımlar, zorluk seviyesi, mutfak adı — HER ŞEY TÜRKÇE.
 
             Tam olarak uyman gereken JSON şeması:
             {
@@ -126,10 +126,16 @@ class OpenAIService {
                   "description": "Kısa 1-2 cümlelik açıklama",
                   "servings": 2,
                   "ingredients": [{"name": "tavuk", "quantity": "500", "unit": "g"}],
-                  "spices_common": ["tuz", "karabiber"],
-                  "spices_optional": ["kırmızı biber"],
+                  "spices": [
+                    {"name": "tuz", "alternatives": ["deniz tuzu", "himalaya tuzu"]},
+                    {"name": "karabiber", "alternatives": ["beyaz biber", "yeşil biber"]},
+                    {"name": "kimyon", "alternatives": ["kişniş", "rezene"]}
+                  ],
                   "required_extra_ingredients": [],
-                  "steps": ["Adım 1 metni", "Adım 2 metni"]
+                  "steps": [
+                    "Tavuğu küçük parçalara kesin ve orta ateşte 2 yemek kaşığı zeytinyağında 8-10 dakika, her tarafı altın rengi olana kadar kavurun.",
+                    "Soğanları ince ince doğrayın ve aynı tavada 3-4 dakika, şeffaflaşana kadar soteleyin."
+                  ]
                 }
               ],
               "extra_ingredient_recipes": [aynı yapı]
@@ -141,12 +147,12 @@ class OpenAIService {
             - ÖNEMLİ: extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır. required_extra_ingredients ASLA BOŞ OLMAMALI, her extra_ingredient tarifinde mutlaka 2-4 ek malzeme olmalı (örn: ["krema", "mantar", "parmesan"])
             - extra_ingredient_recipes'teki ek malzemeler kullanıcının vermediği yeni malzemeler olmalı
             - Tüm miktarları istenen porsiyona göre ayarla
-            - Adımlarda süreleri belirt (örn. "5 dakika pişirin", "20 dakika fırınlayın")
+            - ADIMLAR ÇOK DETAYLI OLMALI: Her adımda kesin süre belirt (örn. "5 dakika pişirin", "20 dakika fırınlayın", "3-4 dakika kavurun"), sıcaklık derecesi (örn. "180°C fırında", "orta ateşte"), miktar (örn. "2 yemek kaşığı yağ ekleyin"), ve görsel ipuçları (örn. "altın rengi olana kadar", "kaynamaya başlayana kadar") ver. Kısa ve belirsiz adımlar YAZMA.
+            - Her tarifin 5-8 açık, detaylı adımı olsun
             - Tarifler gerçekçi, çeşitli ve yapılabilir olsun
             - Tekrar eden veya birbirine çok benzer tarifler olmasın
-            - Her tarifin 4-8 açık adımı olsun, yeni başlayanlar için anlaşılır açıklamalarla
-            - Baharatları yaygın (mevcut varsayılan) ve isteğe bağlı (almak gerekebilir) olarak ayır
-            - HER ŞEY TÜRKÇE OLMALI
+            - "spices" dizisinde tarifin kullandığı TÜM baharatları listele. Her baharatın 2-3 alternatifi olsun (yerine kullanılabilecek baharatlar).
+            - HER ŞEY TÜRKÇE OLMALI — İngilizce tek bir kelime bile olmamalı
             """
         } else {
             return """
@@ -164,10 +170,16 @@ class OpenAIService {
                   "description": "Short 1-2 sentence description",
                   "servings": 2,
                   "ingredients": [{"name": "chicken", "quantity": "500", "unit": "g"}],
-                  "spices_common": ["salt", "pepper"],
-                  "spices_optional": ["paprika"],
+                  "spices": [
+                    {"name": "salt", "alternatives": ["sea salt", "pink salt"]},
+                    {"name": "black pepper", "alternatives": ["white pepper", "green peppercorn"]},
+                    {"name": "cumin", "alternatives": ["coriander", "caraway"]}
+                  ],
                   "required_extra_ingredients": [],
-                  "steps": ["Step 1 text", "Step 2 text"]
+                  "steps": [
+                    "Cut the chicken into bite-sized pieces and sear in 2 tablespoons of olive oil over medium-high heat for 8-10 minutes, turning occasionally, until golden brown on all sides.",
+                    "Dice the onions finely and sauté in the same pan for 3-4 minutes until translucent and fragrant."
+                  ]
                 }
               ],
               "extra_ingredient_recipes": [same structure]
@@ -179,11 +191,12 @@ class OpenAIService {
             - IMPORTANT: extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients. required_extra_ingredients must NEVER be empty for these recipes - always include 2-4 extra ingredients the user didn't provide (e.g. ["cream", "mushrooms", "parmesan"])
             - The extra ingredients should be ingredients NOT in the user's list
             - Scale all quantities to the requested servings
-            - Include time durations in steps (e.g. "Cook for 5 minutes", "Bake for 20 minutes")
+            - STEPS MUST BE VERY DETAILED: Every step must include precise timing (e.g. "cook for 5 minutes", "bake for 20 minutes at 180°C"), temperature (e.g. "over medium-high heat", "preheat oven to 200°C"), quantities (e.g. "add 2 tablespoons of oil"), and visual cues (e.g. "until golden brown", "until the sauce thickens"). Do NOT write short vague steps.
+            - Each recipe must have 5-8 clear, detailed steps
             - Make recipes realistic, diverse, and cookable
             - No duplicate or near-duplicate recipes
-            - Each recipe must have 4-8 clear steps with beginner-friendly explanations
-            - Separate spices into common (assume available) and optional (might need to buy)
+            - In "spices" array, list ALL spices the recipe uses. Each spice must have 2-3 alternatives (substitutes that can replace it).
+            - Everything must be in English
             """
         }
     }
@@ -199,7 +212,7 @@ class OpenAIService {
             Mutfak tercihleri: \(cuisineList)
             Porsiyon: \(servings)
 
-            Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI.
+            Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI — baharat isimleri, adımlar, malzeme isimleri, birimler dahil tamamı Türkçe.
             """
         } else {
             return """
@@ -208,7 +221,7 @@ class OpenAIService {
             Cuisine preferences: \(cuisineList)
             Servings: \(servings)
 
-            Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting.
+            Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting. All content in English.
             """
         }
     }
@@ -225,7 +238,9 @@ class OpenAIService {
 
         let systemPrompt = """
         You are a translator. Translate the given recipe JSON array into \(targetLang).
-        Translate ALL text fields: title, description, cuisine, difficulty, ingredient names, ingredient units, spices_common, spices_optional, required_extra_ingredients, and steps.
+        Translate ALL text fields: title, description, cuisine, difficulty, ingredient names, ingredient units, steps, required_extra_ingredients.
+        For the "spices" array: translate each spice "name" and all "alternatives" strings.
+        If "spices" field is missing but "spices_common" and "spices_optional" exist, translate those too.
         Keep the same JSON structure. Keep id, calories, servings, and quantity values unchanged.
         For difficulty, use: \(language == "tr" ? "Kolay/Orta/Zor" : "Easy/Medium/Hard")
         Respond with ONLY the translated JSON array. No markdown, no extra text.
@@ -238,7 +253,7 @@ class OpenAIService {
                 OpenAIChatMessage(role: "user", content: recipesString)
             ],
             temperature: 0.3,
-            max_tokens: 4000
+            max_tokens: 5000
         )
 
         var urlRequest = URLRequest(url: url)

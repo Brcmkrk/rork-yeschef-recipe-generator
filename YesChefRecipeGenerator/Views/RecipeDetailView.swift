@@ -8,6 +8,7 @@ struct RecipeDetailView: View {
     @Environment(LanguageManager.self) private var lang
     @State private var showCookingMode: Bool = false
     @State private var copied: Bool = false
+    @State private var expandedSpice: String?
 
     var body: some View {
         NavigationStack {
@@ -108,46 +109,36 @@ struct RecipeDetailView: View {
     }
 
     private var spicesCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let spices = recipe.allSpices
+
+        return VStack(alignment: .leading, spacing: 14) {
             Label(lang.t("Spices", "Baharatlar"), systemImage: "leaf.fill")
                 .font(.headline)
 
-            if !recipe.spices_common.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(lang.t("Common (assume available)", "Yaygın (mevcut varsayılır)"))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+            if spices.isEmpty {
+                Text(lang.t("No spices needed", "Baharat gerekmiyor"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(lang.t("Tap a spice to see alternatives", "Alternatifler için baharata dokun"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
 
-                    FlowLayout(spacing: 6) {
-                        ForEach(recipe.spices_common, id: \.self) { spice in
-                            Text(spice)
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.green.opacity(0.12))
-                                .foregroundStyle(.green)
-                                .clipShape(.rect(cornerRadius: 8))
-                        }
-                    }
-                }
-            }
-
-            if !recipe.spices_optional.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(lang.t("Optional (may need to buy)", "Opsiyonel (almanız gerekebilir)"))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    FlowLayout(spacing: 6) {
-                        ForEach(recipe.spices_optional, id: \.self) { spice in
-                            Text(spice)
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.purple.opacity(0.12))
-                                .foregroundStyle(.purple)
-                                .clipShape(.rect(cornerRadius: 8))
-                        }
+                VStack(spacing: 8) {
+                    ForEach(spices) { spice in
+                        SpiceRow(
+                            spice: spice,
+                            isExpanded: expandedSpice == spice.name,
+                            onTap: {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    if expandedSpice == spice.name {
+                                        expandedSpice = nil
+                                    } else {
+                                        expandedSpice = spice.name
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -223,9 +214,9 @@ struct RecipeDetailView: View {
 
     private var difficultyColor: Color {
         switch recipe.difficulty.lowercased() {
-        case "easy": return .green
-        case "medium": return .orange
-        case "hard": return .red
+        case "easy", "kolay": return .green
+        case "medium", "orta": return .orange
+        case "hard", "zor": return .red
         default: return .secondary
         }
     }
@@ -242,6 +233,67 @@ struct RecipeDetailView: View {
         .background(color.opacity(0.12))
         .foregroundStyle(color)
         .clipShape(.rect(cornerRadius: 8))
+    }
+}
+
+struct SpiceRow: View {
+    let spice: RecipeSpice
+    let isExpanded: Bool
+    let onTap: () -> Void
+    @Environment(LanguageManager.self) private var lang
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onTap) {
+                HStack(spacing: 10) {
+                    Image(systemName: "leaf.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+
+                    Text(spice.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    if !spice.alternatives.isEmpty {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(isExpanded ? Color.green.opacity(0.06) : .clear)
+                .clipShape(.rect(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded && !spice.alternatives.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(lang.t("Can be replaced with:", "Yerine kullanılabilir:"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 34)
+
+                    FlowLayout(spacing: 6) {
+                        ForEach(spice.alternatives, id: \.self) { alt in
+                            Text(alt)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.orange.opacity(0.12))
+                                .foregroundStyle(.orange)
+                                .clipShape(.rect(cornerRadius: 8))
+                        }
+                    }
+                    .padding(.leading, 34)
+                }
+                .padding(.bottom, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 }
 
