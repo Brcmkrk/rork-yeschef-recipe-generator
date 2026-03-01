@@ -56,7 +56,6 @@ class OpenAIService {
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
 
-        let isRefresh = !excludeTitles.isEmpty
         let systemPrompt = buildSystemPrompt(language: language, exactCount: exactCount, extraCount: extraCount, excludeTitles: excludeTitles)
         let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language, totalCount: exactCount + extraCount, excludeTitles: excludeTitles)
 
@@ -66,7 +65,7 @@ class OpenAIService {
                 OpenAIChatMessage(role: "system", content: systemPrompt),
                 OpenAIChatMessage(role: "user", content: userPrompt)
             ],
-            temperature: isRefresh ? 1.2 : 0.8,
+            temperature: 0.9,
             max_tokens: 5000
         )
 
