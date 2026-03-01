@@ -21,6 +21,10 @@ struct ProfileView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle(lang.t("Profile", "Profil"))
             .navigationBarTitleDisplayMode(.large)
+            .onChange(of: lang.current) { _, newValue in
+                likesStore.translateRecipes(to: newValue.rawValue)
+                triedStore.translateRecipes(to: newValue.rawValue)
+            }
             .sheet(item: $selectedRecipe) { recipe in
                 RecipeDetailView(recipe: recipe, viewModel: RecipeViewModel())
             }
@@ -156,7 +160,7 @@ struct ProfileView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(likesStore.likedRecipes) { recipe in
                         recipeRow(recipe, icon: "heart.fill", iconColor: .pink) {
-                            likesStore.removeLikedRecipe(recipe)
+                            likesStore.hideFromProfile(recipe)
                         }
                     }
                 }

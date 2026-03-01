@@ -3,6 +3,7 @@ import Foundation
 @Observable
 class TriedRecipesStore {
     var recipes: [Recipe] = []
+    var isTranslating: Bool = false
     private let key = "tried_recipes"
 
     init() {
@@ -20,8 +21,12 @@ class TriedRecipesStore {
 
     func remove(_ recipe: Recipe) {
         recipes.removeAll { $0.id == recipe.id }
+        var hidden = UserDefaults.standard.stringArray(forKey: "hidden_tried_recipes") ?? []
+        if !hidden.contains(recipe.id) {
+            hidden.append(recipe.id)
+        }
+        UserDefaults.standard.set(hidden, forKey: "hidden_tried_recipes")
         saveLocal()
-        Task { try? await SupabaseService.shared.deleteTriedRecipe(recipeId: recipe.id) }
     }
 
     func contains(_ recipe: Recipe) -> Bool {
@@ -33,16 +38,18 @@ class TriedRecipesStore {
         do {
             let remote = try await SupabaseService.shared.fetchMyTriedRecipes()
             var synced: [Recipe] = []
+            let hiddenIds = Set(UserDefaults.standard.stringArray(forKey: "hidden_tried_recipes") ?? [])
 
             for r in remote {
-                if let recipeData = r.recipe_data.data(using: .utf8),
+                if !hiddenIds.contains(r.recipe_id),
+                   let recipeData = r.recipe_data.data(using: .utf8),
                    let recipe = try? JSONDecoder().decode(Recipe.self, from: recipeData) {
                     synced.append(recipe)
                 }
             }
 
             let localOnly = recipes.filter { local in
-                !synced.contains(where: { $0.id == local.id })
+                !synced.contains(where: { $0.id == local.id }) && !hiddenIds.contains(local.id)
             }
             for recipe in localOnly {
                 try? await SupabaseService.shared.upsertTriedRecipe(recipe: recipe)
@@ -60,6 +67,32 @@ class TriedRecipesStore {
         guard let data = UserDefaults.standard.data(forKey: key),
               let decoded = try? JSONDecoder().decode([Recipe].self, from: data) else { return }
         recipes = decoded
+    }
+
+    func translateRecipes(to language: String) {
+        guard !recipes.isEmpty else { return }
+        let needsTranslation = recipes.contains { ($0.language ?? "") != language }
+        guard needsTranslation else { return }
+        isTranslating = true
+        Task {
+            do {
+                let toTranslate = recipes.filter { ($0.language ?? "") != language }
+                guard !toTranslate.isEmpty else {
+                    isTranslating = false
+                    return
+                }
+                let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: language)
+                for t in translated {
+                    if let idx = recipes.firstIndex(where: { $0.id == t.id }) {
+                        var updated = t
+                        updated.language = language
+                        recipes[idx] = updated
+                    }
+                }
+                saveLocal()
+            } catch {}
+            isTranslating = false
+        }
     }
 
     private func saveLocal() {

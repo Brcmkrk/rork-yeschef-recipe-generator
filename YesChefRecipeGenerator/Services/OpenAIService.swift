@@ -137,8 +137,9 @@ class OpenAIService {
 
             Kurallar:
             - Tam olarak 4 exact_match_recipes ve 4 extra_ingredient_recipes döndür
-            - exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır
-            - extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır
+            - exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır. exact_match_recipes için required_extra_ingredients boş dizi [] olmalı.
+            - ÖNEMLİ: extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır. required_extra_ingredients ASLA BOŞ OLMAMALI, her extra_ingredient tarifinde mutlaka 2-4 ek malzeme olmalı (örn: ["krema", "mantar", "parmesan"])
+            - extra_ingredient_recipes'teki ek malzemeler kullanıcının vermediği yeni malzemeler olmalı
             - Tüm miktarları istenen porsiyona göre ayarla
             - Adımlarda süreleri belirt (örn. "5 dakika pişirin", "20 dakika fırınlayın")
             - Tarifler gerçekçi, çeşitli ve yapılabilir olsun
@@ -174,8 +175,9 @@ class OpenAIService {
 
             Rules:
             - Return exactly 4 exact_match_recipes and 4 extra_ingredient_recipes
-            - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter)
-            - extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients
+            - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter). required_extra_ingredients must be an empty array [] for these.
+            - IMPORTANT: extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients. required_extra_ingredients must NEVER be empty for these recipes - always include 2-4 extra ingredients the user didn't provide (e.g. ["cream", "mushrooms", "parmesan"])
+            - The extra ingredients should be ingredients NOT in the user's list
             - Scale all quantities to the requested servings
             - Include time durations in steps (e.g. "Cook for 5 minutes", "Bake for 20 minutes")
             - Make recipes realistic, diverse, and cookable

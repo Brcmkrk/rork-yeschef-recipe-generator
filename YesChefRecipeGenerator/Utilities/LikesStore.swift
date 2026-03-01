@@ -11,6 +11,7 @@ class LikesStore {
     var reactions: [String: ReactionType] = [:]
     var likedRecipes: [Recipe] = []
     var globalCounts: [String: RecipeCounts] = [:]
+    var isTranslating: Bool = false
     private let reactionsKey = "recipe_reactions_local"
     private let likedRecipesKey = "liked_recipes_local"
 
@@ -66,10 +67,8 @@ class LikesStore {
     }
 
     func removeLikedRecipe(_ recipe: Recipe) {
-        reactions[recipe.id] = .none
         likedRecipes.removeAll { $0.id == recipe.id }
         saveLocal()
-        Task { try? await SupabaseService.shared.deleteReaction(recipeId: recipe.id) }
     }
 
     func likesCount(for id: String) -> Int {
@@ -108,12 +107,14 @@ class LikesStore {
             let remoteReactions = try await SupabaseService.shared.fetchMyReactions()
             var mergedReactions: [String: ReactionType] = [:]
             var mergedLiked: [Recipe] = []
+            let hiddenIds = Set(UserDefaults.standard.stringArray(forKey: "hidden_liked_recipes") ?? [])
 
             for r in remoteReactions {
                 let type: ReactionType = r.reaction == "like" ? .like : .dislike
                 mergedReactions[r.recipe_id] = type
 
-                if type == .like, let recipeData = r.recipe_data.data(using: .utf8),
+                if type == .like, !hiddenIds.contains(r.recipe_id),
+                   let recipeData = r.recipe_data.data(using: .utf8),
                    let recipe = try? JSONDecoder().decode(Recipe.self, from: recipeData) {
                     mergedLiked.append(recipe)
                 }
@@ -122,7 +123,9 @@ class LikesStore {
             for (id, localReaction) in reactions where mergedReactions[id] == nil {
                 mergedReactions[id] = localReaction
                 if localReaction == .like, let recipe = likedRecipes.first(where: { $0.id == id }) {
-                    mergedLiked.append(recipe)
+                    if !hiddenIds.contains(id) {
+                        mergedLiked.append(recipe)
+                    }
                     try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "like")
                 } else if localReaction == .dislike, let recipe = likedRecipes.first(where: { $0.id == id }) {
                     try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "dislike")
@@ -134,6 +137,42 @@ class LikesStore {
             saveLocal()
         } catch {
             // keep local data on failure
+        }
+    }
+
+    func hideFromProfile(_ recipe: Recipe) {
+        likedRecipes.removeAll { $0.id == recipe.id }
+        var hidden = UserDefaults.standard.stringArray(forKey: "hidden_liked_recipes") ?? []
+        if !hidden.contains(recipe.id) {
+            hidden.append(recipe.id)
+        }
+        UserDefaults.standard.set(hidden, forKey: "hidden_liked_recipes")
+        saveLocal()
+    }
+
+    func translateRecipes(to language: String) {
+        guard !likedRecipes.isEmpty else { return }
+        let needsTranslation = likedRecipes.contains { ($0.language ?? "") != language }
+        guard needsTranslation else { return }
+        isTranslating = true
+        Task {
+            do {
+                let toTranslate = likedRecipes.filter { ($0.language ?? "") != language }
+                guard !toTranslate.isEmpty else {
+                    isTranslating = false
+                    return
+                }
+                let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: language)
+                for t in translated {
+                    if let idx = likedRecipes.firstIndex(where: { $0.id == t.id }) {
+                        var updated = t
+                        updated.language = language
+                        likedRecipes[idx] = updated
+                    }
+                }
+                saveLocal()
+            } catch {}
+            isTranslating = false
         }
     }
 
