@@ -103,9 +103,9 @@ struct RecipeCardView: View {
 
     private var difficultyColor: Color {
         switch recipe.difficulty.lowercased() {
-        case "easy": return .green
-        case "medium": return .orange
-        case "hard": return .red
+        case "easy", "kolay": return .green
+        case "medium", "orta": return .orange
+        case "hard", "zor": return .red
         default: return .secondary
         }
     }

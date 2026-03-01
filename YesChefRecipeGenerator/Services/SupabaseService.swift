@@ -9,6 +9,13 @@ nonisolated struct SupabaseReaction: Codable, Sendable {
     let created_at: String?
 }
 
+nonisolated struct SupabaseReactionInsert: Codable, Sendable {
+    let device_id: String
+    let recipe_id: String
+    let recipe_data: String
+    let reaction: String
+}
+
 nonisolated struct RecipeCounts: Sendable {
     var likes: Int = 0
     var dislikes: Int = 0
@@ -25,6 +32,12 @@ nonisolated struct SupabaseTriedRecipe: Codable, Sendable {
     let recipe_id: String
     let recipe_data: String
     let created_at: String?
+}
+
+nonisolated struct SupabaseTriedRecipeInsert: Codable, Sendable {
+    let device_id: String
+    let recipe_id: String
+    let recipe_data: String
 }
 
 class SupabaseService {
@@ -88,15 +101,13 @@ class SupabaseService {
                   let request = makeRequest(path: "recipe_reactions", method: "PATCH", body: bodyData, queryParams: query) else { return }
             _ = try await URLSession.shared.data(for: request)
         } else {
-            let newReaction = SupabaseReaction(
-                id: nil,
+            let insert = SupabaseReactionInsert(
                 device_id: deviceId,
                 recipe_id: recipeId,
                 recipe_data: recipeJSON,
-                reaction: reaction,
-                created_at: nil
+                reaction: reaction
             )
-            guard let bodyData = try? JSONEncoder().encode(newReaction),
+            guard let bodyData = try? JSONEncoder().encode(insert),
                   let request = makeRequest(path: "recipe_reactions", method: "POST", body: bodyData) else { return }
             _ = try await URLSession.shared.data(for: request)
         }
@@ -164,16 +175,17 @@ class SupabaseService {
         let existing = try await fetchTriedRecipe(recipeId: recipe.id)
         if existing != nil { return }
 
-        let row = SupabaseTriedRecipe(
-            id: nil,
+        let insert = SupabaseTriedRecipeInsert(
             device_id: deviceId,
             recipe_id: recipe.id,
-            recipe_data: recipeJSON,
-            created_at: nil
+            recipe_data: recipeJSON
         )
-        guard let bodyData = try? JSONEncoder().encode(row),
+        guard let bodyData = try? JSONEncoder().encode(insert),
               let request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else { return }
-        _ = try await URLSession.shared.data(for: request)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            print("[SupabaseService] tried_recipes POST failed: \(http.statusCode)")
+        }
     }
 
     func deleteTriedRecipe(recipeId: String) async throws {

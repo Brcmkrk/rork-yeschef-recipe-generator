@@ -177,13 +177,24 @@ struct CookingModeView: View {
     }
 
     private func parseTimers() {
-        let pattern = /(\d+)\s*(?:minutes?|mins?|min)/
+        let minutePattern = /(\d+)\s*(?:minutes?|mins?|min|dakika|dk)/
+        let hourPattern = /(\d+)\s*(?:hours?|hrs?|hr|saat)/
+        let secondPattern = /(\d+)\s*(?:seconds?|secs?|sec|saniye|sn)/
         for (index, step) in recipe.steps.enumerated() {
-            let matches = step.matches(of: pattern)
-            for match in matches {
-                if let minutes = Int(match.1) {
-                    let timer = StepTimer(stepIndex: index, totalSeconds: minutes * 60)
-                    timers.append(timer)
+            let lowered = step.lowercased()
+            for match in lowered.matches(of: minutePattern) {
+                if let minutes = Int(match.1), minutes > 0 {
+                    timers.append(StepTimer(stepIndex: index, totalSeconds: minutes * 60))
+                }
+            }
+            for match in lowered.matches(of: hourPattern) {
+                if let hours = Int(match.1), hours > 0 {
+                    timers.append(StepTimer(stepIndex: index, totalSeconds: hours * 3600))
+                }
+            }
+            for match in lowered.matches(of: secondPattern) {
+                if let seconds = Int(match.1), seconds > 0 {
+                    timers.append(StepTimer(stepIndex: index, totalSeconds: seconds))
                 }
             }
         }

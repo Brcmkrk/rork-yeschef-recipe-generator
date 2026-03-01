@@ -66,8 +66,8 @@ class RecipeViewModel {
                 language: language
             )
 
-            exactMatchRecipes = response.exact_match_recipes
-            extraIngredientRecipes = response.extra_ingredient_recipes
+            exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
+            extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
             hasResults = true
         } catch is CancellationError {
             // cancelled

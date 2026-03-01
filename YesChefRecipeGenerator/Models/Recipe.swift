@@ -20,6 +20,7 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
     let spices_optional: [String]
     let required_extra_ingredients: [String]
     let steps: [String]
+    var language: String?
 
     static func == (lhs: Recipe, rhs: Recipe) -> Bool {
         lhs.id == rhs.id

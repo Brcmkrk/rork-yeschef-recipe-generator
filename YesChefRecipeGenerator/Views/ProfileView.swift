@@ -223,10 +223,17 @@ struct ProfileView: View {
         } label: {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(recipe.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(recipe.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        if let recipeLang = recipe.language, recipeLang != lang.current.rawValue {
+                            Text(recipeLang == "tr" ? "🇹🇷" : "🇬🇧")
+                                .font(.caption2)
+                        }
+                    }
 
                     HStack(spacing: 8) {
                         Text(recipe.cuisine)
