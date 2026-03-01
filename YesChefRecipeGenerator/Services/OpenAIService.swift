@@ -153,6 +153,7 @@ class OpenAIService {
             - Tarifler gerçekçi, çeşitli ve yapılabilir olsun
             - Tekrar eden veya birbirine çok benzer tarifler olmasın
             - "spices" dizisinde tarifin kullandığı TÜM baharatları listele. Her baharatın 2-3 alternatifi olsun (yerine kullanılabilecek baharatlar).
+            - ÖNEMLİ MALZEME TUTARLILIĞI: Adımlarda kullanılan HER malzeme mutlaka "ingredients" veya "required_extra_ingredients" listesinde yer almalı. Örneğin adımlarda "yufka açın" yazıyorsa, yufka mutlaka malzeme listesinde olmalı. Tarifi oluşturduktan sonra adımları tekrar kontrol et ve eksik malzeme varsa ekle. Baharatlar hariç hiçbir malzeme atlanmamalı.
             - HER ŞEY TÜRKÇE OLMALI — İngilizce tek bir kelime bile olmamalı
             """
         } else {
@@ -197,6 +198,7 @@ class OpenAIService {
             - Make recipes realistic, diverse, and cookable
             - No duplicate or near-duplicate recipes
             - In "spices" array, list ALL spices the recipe uses. Each spice must have 2-3 alternatives (substitutes that can replace it).
+            - IMPORTANT INGREDIENT CONSISTENCY: Every ingredient used in the steps MUST appear in the "ingredients" or "required_extra_ingredients" list. For example, if a step says "roll out the phyllo dough", then phyllo dough MUST be in the ingredients list. After generating the recipe, review all steps and ensure no ingredient is missing from the lists. Spices are excluded from this rule.
             - Everything must be in English
             """
         }
