@@ -80,7 +80,17 @@ struct HomeView: View {
                 )
             }
             .fullScreenCover(isPresented: $showResults) {
-                ResultsView(viewModel: viewModel)
+                ResultsView(viewModel: viewModel, onRefresh: {
+                    showResults = false
+                    recipesReady = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showLoading = true
+                        Task {
+                            await viewModel.refreshRecipes()
+                            recipesReady = true
+                        }
+                    }
+                })
             }
         }
     }

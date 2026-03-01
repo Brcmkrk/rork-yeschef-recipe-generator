@@ -2,12 +2,12 @@ import SwiftUI
 
 struct ResultsView: View {
     let viewModel: RecipeViewModel
+    let onRefresh: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(LikesStore.self) private var likesStore
     @Environment(LanguageManager.self) private var lang
     @State private var selectedRecipeId: String?
     @State private var appeared: Bool = false
-    @State private var isRefreshing: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -80,26 +80,12 @@ struct ResultsView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        guard !isRefreshing else { return }
-                        isRefreshing = true
-                        appeared = false
-                        Task {
-                            await viewModel.refreshRecipes()
-                            isRefreshing = false
-                            let allRecipes = viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes
-                            likesStore.fetchGlobalCounts(for: allRecipes)
-                            withAnimation(.spring(duration: 0.5).delay(0.1)) {
-                                appeared = true
-                            }
-                        }
+                        onRefresh()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.orange)
-                            .rotationEffect(.degrees(isRefreshing ? 360 : 0))
-                            .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
                     }
-                    .disabled(isRefreshing)
                 }
             }
             .sheet(isPresented: Binding(
