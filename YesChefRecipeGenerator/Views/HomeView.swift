@@ -214,14 +214,32 @@ struct HomeView: View {
 
                 Spacer()
 
-                HStack(spacing: 12) {
-                    Button(lang.t("All", "Tümü")) { viewModel.selectAllCuisines() }
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.orange)
+                HStack(spacing: 8) {
+                    Button {
+                        viewModel.selectAllCuisines()
+                    } label: {
+                        Text(lang.t("All", "Tümü"))
+                            .font(.system(.caption, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(Color.orange.opacity(0.1))
+                            .clipShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
 
-                    Button(lang.t("Clear", "Temizle")) { viewModel.clearCuisines() }
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                    Button {
+                        viewModel.clearCuisines()
+                    } label: {
+                        Text(lang.t("Clear", "Temizle"))
+                            .font(.system(.caption, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(Color(.tertiarySystemFill))
+                            .clipShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
