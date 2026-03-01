@@ -70,6 +70,7 @@ class OpenAIService {
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 120
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
@@ -272,6 +273,7 @@ class OpenAIService {
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 120
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
