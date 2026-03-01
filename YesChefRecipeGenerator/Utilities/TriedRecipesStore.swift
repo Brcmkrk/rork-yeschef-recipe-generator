@@ -13,6 +13,7 @@ class TriedRecipesStore {
     func add(_ recipe: Recipe) {
         guard !recipes.contains(where: { $0.id == recipe.id }) else { return }
         recipes.insert(recipe, at: 0)
+        StatsStore.shared.incrementTried()
         saveLocal()
         Task { try? await SupabaseService.shared.upsertTriedRecipe(recipe: recipe) }
     }

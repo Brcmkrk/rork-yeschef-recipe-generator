@@ -20,7 +20,7 @@ class RecipeViewModel {
     }
 
     var canGenerate: Bool {
-        !ingredientsList.isEmpty && !isLoading
+        !ingredientsList.isEmpty && !selectedCuisines.isEmpty && !isLoading
     }
 
     func fillRandom() {

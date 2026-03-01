@@ -4,6 +4,7 @@ struct ProfileView: View {
     @Environment(LanguageManager.self) private var lang
     @Environment(LikesStore.self) private var likesStore
     @Environment(TriedRecipesStore.self) private var triedStore
+    @Environment(StatsStore.self) private var statsStore
     @State private var selectedRecipe: Recipe?
 
     var body: some View {
@@ -32,13 +33,13 @@ struct ProfileView: View {
                 statCard(
                     icon: "fork.knife",
                     color: .orange,
-                    value: "\(triedStore.recipes.count)",
+                    value: "\(statsStore.totalTried)",
                     label: lang.t("Tried", "Denendi")
                 )
                 statCard(
                     icon: "heart.fill",
                     color: .pink,
-                    value: "\(likesStore.likedRecipes.count)",
+                    value: "\(statsStore.totalLiked)",
                     label: lang.t("Liked", "Beğenildi")
                 )
             }

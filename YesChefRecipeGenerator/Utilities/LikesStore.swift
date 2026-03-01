@@ -39,6 +39,7 @@ class LikesStore {
             adjustLocalCount(id: id, addingReaction: .like)
             if !likedRecipes.contains(where: { $0.id == id }) {
                 likedRecipes.insert(recipe, at: 0)
+                StatsStore.shared.incrementLiked()
             }
             saveLocal()
             Task { try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "like") }
@@ -65,10 +66,6 @@ class LikesStore {
     }
 
     func removeLikedRecipe(_ recipe: Recipe) {
-        let current = reaction(for: recipe.id)
-        if current != .none {
-            adjustLocalCount(id: recipe.id, removingReaction: current)
-        }
         reactions[recipe.id] = .none
         likedRecipes.removeAll { $0.id == recipe.id }
         saveLocal()

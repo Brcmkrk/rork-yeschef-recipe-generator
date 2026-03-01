@@ -39,12 +39,7 @@ class SupabaseService {
     }
 
     private var deviceId: String {
-        if let stored = UserDefaults.standard.string(forKey: "device_uuid") {
-            return stored
-        }
-        let newId = UUID().uuidString
-        UserDefaults.standard.set(newId, forKey: "device_uuid")
-        return newId
+        KeychainHelper.persistentDeviceId
     }
 
     var isConfigured: Bool {
