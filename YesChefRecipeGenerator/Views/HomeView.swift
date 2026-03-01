@@ -301,6 +301,25 @@ struct HomeView: View {
                 recipeMixOption(exact: 1, extra: 3)
                 recipeMixOption(exact: 0, extra: 4)
             }
+
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.green)
+                    Text(lang.t("Your ingredients", "Senin malzemelerin"))
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.purple)
+                    Text(lang.t("Extra ingredients", "Ekstra malzemeler"))
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
