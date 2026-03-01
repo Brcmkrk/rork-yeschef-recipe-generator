@@ -53,6 +53,9 @@ struct ResultsView: View {
             }
             .navigationTitle(lang.t("Your Recipes", "Tariflerin"))
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: lang.current) { _, newValue in
+                viewModel.translateIfNeeded(to: newValue.rawValue)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { dismiss() } label: {

@@ -144,8 +144,10 @@ struct CookingModeView: View {
             } else {
                 Button {
                     triedStore.add(recipe)
-                    dismiss()
-                    onFinishCooking?()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        dismiss()
+                        onFinishCooking?()
+                    }
                 } label: {
                     Label(lang.t("Finish", "Bitir"), systemImage: "checkmark")
                         .font(.subheadline.weight(.semibold))

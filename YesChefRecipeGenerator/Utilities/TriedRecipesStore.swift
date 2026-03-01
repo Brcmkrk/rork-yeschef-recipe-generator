@@ -12,10 +12,11 @@ class TriedRecipesStore {
     }
 
     func add(_ recipe: Recipe) {
-        guard !recipes.contains(where: { $0.id == recipe.id }) else { return }
-        recipes.insert(recipe, at: 0)
         StatsStore.shared.incrementTried()
-        saveLocal()
+        if !recipes.contains(where: { $0.id == recipe.id }) {
+            recipes.insert(recipe, at: 0)
+            saveLocal()
+        }
         Task { try? await SupabaseService.shared.upsertTriedRecipe(recipe: recipe) }
     }
 
@@ -29,9 +30,11 @@ class TriedRecipesStore {
         saveLocal()
     }
 
-    func contains(_ recipe: Recipe) -> Bool {
-        recipes.contains(where: { $0.id == recipe.id })
+    func contains(_ id: String) -> Bool {
+        recipes.contains(where: { $0.id == id })
     }
+
+
 
     func syncFromSupabase() async {
         guard SupabaseService.shared.isConfigured else { return }

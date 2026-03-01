@@ -4,6 +4,7 @@ struct HomeView: View {
     @Bindable var viewModel: RecipeViewModel
     @State private var showResults: Bool = false
     @State private var showLoading: Bool = false
+    @State private var recipesReady: Bool = false
     @FocusState private var isEditorFocused: Bool
     @Environment(LanguageManager.self) private var lang
 
@@ -36,10 +37,21 @@ struct HomeView: View {
             .navigationTitle("YesChef")
             .navigationBarTitleDisplayMode(.large)
             .fullScreenCover(isPresented: $showLoading) {
-                LoadingView {
-                    viewModel.cancelGeneration()
-                    showLoading = false
-                }
+                LoadingView(
+                    recipesReady: recipesReady,
+                    onCancel: {
+                        viewModel.cancelGeneration()
+                        showLoading = false
+                        recipesReady = false
+                    },
+                    onShowRecipes: {
+                        showLoading = false
+                        recipesReady = false
+                        if viewModel.hasResults && viewModel.errorMessage == nil {
+                            showResults = true
+                        }
+                    }
+                )
             }
             .fullScreenCover(isPresented: $showResults) {
                 ResultsView(viewModel: viewModel)
@@ -175,13 +187,11 @@ struct HomeView: View {
         VStack(spacing: 12) {
             Button {
                 isEditorFocused = false
+                recipesReady = false
                 showLoading = true
                 Task {
                     await viewModel.generateRecipes()
-                    showLoading = false
-                    if viewModel.hasResults && viewModel.errorMessage == nil {
-                        showResults = true
-                    }
+                    recipesReady = true
                 }
             } label: {
                 Label(lang.t("Generate Recipes", "Tarif Oluştur"), systemImage: "sparkles")
@@ -202,13 +212,11 @@ struct HomeView: View {
                         .multilineTextAlignment(.center)
 
                     Button(lang.t("Retry", "Tekrar Dene")) {
+                        recipesReady = false
                         showLoading = true
                         Task {
                             await viewModel.generateRecipes()
-                            showLoading = false
-                            if viewModel.hasResults && viewModel.errorMessage == nil {
-                                showResults = true
-                            }
+                            recipesReady = true
                         }
                     }
                     .font(.footnote.weight(.semibold))

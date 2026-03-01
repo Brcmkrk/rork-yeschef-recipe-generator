@@ -19,6 +19,19 @@ struct ProfileView: View {
                 .padding(.vertical, 16)
             }
             .background(Color(.systemGroupedBackground))
+            .overlay {
+                if likesStore.isTranslating || triedStore.isTranslating {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text(lang.t("Translating recipes...", "Tarifler çevriliyor..."))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
+                }
+            }
             .navigationTitle(lang.t("Profile", "Profil"))
             .navigationBarTitleDisplayMode(.large)
             .onChange(of: lang.current) { _, newValue in
