@@ -24,4 +24,21 @@ nonisolated enum Cuisine: String, CaseIterable, Sendable, Identifiable {
         case .indian: return "sparkles"
         }
     }
+
+    func localizedName(language: String) -> String {
+        if language == "tr" {
+            switch self {
+            case .turkish: return "Türk"
+            case .italian: return "İtalyan"
+            case .mexican: return "Meksika"
+            case .asian: return "Asya"
+            case .french: return "Fransız"
+            case .mediterranean: return "Akdeniz"
+            case .american: return "Amerikan"
+            case .indian: return "Hint"
+            }
+        } else {
+            return rawValue
+        }
+    }
 }

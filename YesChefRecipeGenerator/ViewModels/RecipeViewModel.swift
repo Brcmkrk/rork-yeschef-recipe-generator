@@ -23,8 +23,10 @@ class RecipeViewModel {
         !ingredientsList.isEmpty && !selectedCuisines.isEmpty && !isLoading
     }
 
+    var language: String = "en"
+
     func fillRandom() {
-        ingredientsText = IngredientPool.random(count: Int.random(in: 4...7)).joined(separator: ", ")
+        ingredientsText = IngredientPool.random(count: Int.random(in: 4...7), language: language).joined(separator: ", ")
     }
 
     func selectAllCuisines() {
@@ -56,11 +58,12 @@ class RecipeViewModel {
         errorMessage = nil
 
         do {
-            let cuisineNames = selectedCuisines.map(\.rawValue)
+            let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
             let response = try await OpenAIService.shared.generateRecipes(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
-                servings: servings
+                servings: servings,
+                language: language
             )
 
             exactMatchRecipes = response.exact_match_recipes

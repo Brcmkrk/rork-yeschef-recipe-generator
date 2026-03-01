@@ -46,14 +46,15 @@ class OpenAIService {
     func generateRecipes(
         ingredients: [String],
         cuisines: [String],
-        servings: Int
+        servings: Int,
+        language: String = "en"
     ) async throws -> RecipeResponse {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
 
-        let systemPrompt = buildSystemPrompt()
-        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings)
+        let systemPrompt = buildSystemPrompt(language: language)
+        let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language)
 
         let request = OpenAIChatRequest(
             model: "gpt-4o-mini",
@@ -104,55 +105,109 @@ class OpenAIService {
         }
     }
 
-    private func buildSystemPrompt() -> String {
-        """
-        You are a professional chef and recipe creator. You MUST respond with ONLY valid JSON, no markdown, no extra text, no explanation.
+    private func buildSystemPrompt(language: String) -> String {
+        let isTurkish = language == "tr"
 
-        The JSON schema you must follow exactly:
-        {
-          "exact_match_recipes": [
+        if isTurkish {
+            return """
+            Sen profesyonel bir şef ve tarif oluşturucusun. SADECE geçerli JSON ile yanıt vermelisin, markdown yok, ekstra metin yok, açıklama yok.
+
+            TÜMÜ Türkçe olmalı — tarif başlıkları, açıklamalar, malzeme adları, baharatlar, adımlar, zorluk seviyesi, mutfak adı — her şey Türkçe.
+
+            Tam olarak uyman gereken JSON şeması:
             {
-              "id": "unique_string",
-              "title": "Recipe Title",
-              "calories": "300-400",
-              "cuisine": "Italian",
-              "difficulty": "Easy|Medium|Hard",
-              "description": "Short 1-2 sentence description",
-              "servings": 2,
-              "ingredients": [{"name": "chicken", "quantity": "500", "unit": "g"}],
-              "spices_common": ["salt", "pepper"],
-              "spices_optional": ["paprika"],
-              "required_extra_ingredients": [],
-              "steps": ["Step 1 text", "Step 2 text"]
+              "exact_match_recipes": [
+                {
+                  "id": "unique_string",
+                  "title": "Tarif Başlığı",
+                  "calories": "300-400",
+                  "cuisine": "İtalyan",
+                  "difficulty": "Kolay|Orta|Zor",
+                  "description": "Kısa 1-2 cümlelik açıklama",
+                  "servings": 2,
+                  "ingredients": [{"name": "tavuk", "quantity": "500", "unit": "g"}],
+                  "spices_common": ["tuz", "karabiber"],
+                  "spices_optional": ["kırmızı biber"],
+                  "required_extra_ingredients": [],
+                  "steps": ["Adım 1 metni", "Adım 2 metni"]
+                }
+              ],
+              "extra_ingredient_recipes": [aynı yapı]
             }
-          ],
-          "extra_ingredient_recipes": [same structure]
-        }
 
-        Rules:
-        - Return exactly 4 exact_match_recipes and 4 extra_ingredient_recipes
-        - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter)
-        - extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients
-        - Scale all quantities to the requested servings
-        - Include time durations in steps (e.g. "Cook for 5 minutes", "Bake for 20 minutes")
-        - Make recipes realistic, diverse, and cookable
-        - No duplicate or near-duplicate recipes
-        - Each recipe must have 4-8 clear steps with beginner-friendly explanations
-        - Separate spices into common (assume available) and optional (might need to buy)
-        """
+            Kurallar:
+            - Tam olarak 4 exact_match_recipes ve 4 extra_ingredient_recipes döndür
+            - exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır
+            - extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır
+            - Tüm miktarları istenen porsiyona göre ayarla
+            - Adımlarda süreleri belirt (örn. "5 dakika pişirin", "20 dakika fırınlayın")
+            - Tarifler gerçekçi, çeşitli ve yapılabilir olsun
+            - Tekrar eden veya birbirine çok benzer tarifler olmasın
+            - Her tarifin 4-8 açık adımı olsun, yeni başlayanlar için anlaşılır açıklamalarla
+            - Baharatları yaygın (mevcut varsayılan) ve isteğe bağlı (almak gerekebilir) olarak ayır
+            - HER ŞEY TÜRKÇE OLMALI
+            """
+        } else {
+            return """
+            You are a professional chef and recipe creator. You MUST respond with ONLY valid JSON, no markdown, no extra text, no explanation.
+
+            The JSON schema you must follow exactly:
+            {
+              "exact_match_recipes": [
+                {
+                  "id": "unique_string",
+                  "title": "Recipe Title",
+                  "calories": "300-400",
+                  "cuisine": "Italian",
+                  "difficulty": "Easy|Medium|Hard",
+                  "description": "Short 1-2 sentence description",
+                  "servings": 2,
+                  "ingredients": [{"name": "chicken", "quantity": "500", "unit": "g"}],
+                  "spices_common": ["salt", "pepper"],
+                  "spices_optional": ["paprika"],
+                  "required_extra_ingredients": [],
+                  "steps": ["Step 1 text", "Step 2 text"]
+                }
+              ],
+              "extra_ingredient_recipes": [same structure]
+            }
+
+            Rules:
+            - Return exactly 4 exact_match_recipes and 4 extra_ingredient_recipes
+            - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter)
+            - extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients
+            - Scale all quantities to the requested servings
+            - Include time durations in steps (e.g. "Cook for 5 minutes", "Bake for 20 minutes")
+            - Make recipes realistic, diverse, and cookable
+            - No duplicate or near-duplicate recipes
+            - Each recipe must have 4-8 clear steps with beginner-friendly explanations
+            - Separate spices into common (assume available) and optional (might need to buy)
+            """
+        }
     }
 
-    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int) -> String {
+    private func buildUserPrompt(ingredients: [String], cuisines: [String], servings: Int, language: String) -> String {
         let ingredientList = ingredients.joined(separator: ", ")
-        let cuisineList = cuisines.isEmpty ? "Any cuisine" : cuisines.joined(separator: ", ")
+        let cuisineList = cuisines.isEmpty ? (language == "tr" ? "Herhangi bir mutfak" : "Any cuisine") : cuisines.joined(separator: ", ")
 
-        return """
-        Generate 8 recipes using these ingredients: \(ingredientList)
+        if language == "tr" {
+            return """
+            Bu malzemeleri kullanarak 8 tarif oluştur: \(ingredientList)
 
-        Cuisine preferences: \(cuisineList)
-        Servings: \(servings)
+            Mutfak tercihleri: \(cuisineList)
+            Porsiyon: \(servings)
 
-        Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting.
-        """
+            Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI.
+            """
+        } else {
+            return """
+            Generate 8 recipes using these ingredients: \(ingredientList)
+
+            Cuisine preferences: \(cuisineList)
+            Servings: \(servings)
+
+            Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting.
+            """
+        }
     }
 }
