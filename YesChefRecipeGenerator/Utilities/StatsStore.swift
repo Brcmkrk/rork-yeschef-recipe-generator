@@ -20,6 +20,11 @@ class StatsStore {
         UserDefaults.standard.set(totalLiked, forKey: likedKey)
     }
 
+    func decrementLiked() {
+        totalLiked = max(0, totalLiked - 1)
+        UserDefaults.standard.set(totalLiked, forKey: likedKey)
+    }
+
     func incrementTried() {
         totalTried += 1
         UserDefaults.standard.set(totalTried, forKey: triedKey)

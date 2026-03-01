@@ -33,6 +33,11 @@ class LikesStore {
             reactions[id] = .none
             likedRecipes.removeAll { $0.id == id }
             adjustLocalCount(id: id, removingReaction: .like)
+            if everLikedIds.contains(id) {
+                everLikedIds.remove(id)
+                UserDefaults.standard.set(Array(everLikedIds), forKey: everLikedKey)
+                StatsStore.shared.decrementLiked()
+            }
             saveLocal()
             Task { try? await SupabaseService.shared.deleteReaction(recipeId: id) }
         } else {
