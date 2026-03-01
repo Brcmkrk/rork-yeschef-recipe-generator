@@ -44,23 +44,49 @@ class RecipeViewModel {
             do {
                 if exactNeedsTranslation && !exactMatchRecipes.isEmpty {
                     let toTranslate = exactMatchRecipes.filter { ($0.language ?? "") != newLanguage }
-                    let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
-                    for t in translated {
-                        if let idx = exactMatchRecipes.firstIndex(where: { $0.id == t.id }) {
-                            var updated = t
-                            updated.language = newLanguage
-                            exactMatchRecipes[idx] = updated
+                    let ids = toTranslate.map { $0.id }
+
+                    if let cached = RecipeCacheService.shared.cachedTranslation(for: ids, language: newLanguage) {
+                        for t in cached {
+                            if let idx = exactMatchRecipes.firstIndex(where: { $0.id == t.id }) {
+                                var updated = t
+                                updated.language = newLanguage
+                                exactMatchRecipes[idx] = updated
+                            }
+                        }
+                    } else {
+                        let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
+                        RecipeCacheService.shared.storeTranslation(translated, recipeIDs: ids, language: newLanguage)
+                        for t in translated {
+                            if let idx = exactMatchRecipes.firstIndex(where: { $0.id == t.id }) {
+                                var updated = t
+                                updated.language = newLanguage
+                                exactMatchRecipes[idx] = updated
+                            }
                         }
                     }
                 }
                 if extraNeedsTranslation && !extraIngredientRecipes.isEmpty {
                     let toTranslate = extraIngredientRecipes.filter { ($0.language ?? "") != newLanguage }
-                    let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
-                    for t in translated {
-                        if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == t.id }) {
-                            var updated = t
-                            updated.language = newLanguage
-                            extraIngredientRecipes[idx] = updated
+                    let ids = toTranslate.map { $0.id }
+
+                    if let cached = RecipeCacheService.shared.cachedTranslation(for: ids, language: newLanguage) {
+                        for t in cached {
+                            if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == t.id }) {
+                                var updated = t
+                                updated.language = newLanguage
+                                extraIngredientRecipes[idx] = updated
+                            }
+                        }
+                    } else {
+                        let translated = try await OpenAIService.shared.translateRecipes(toTranslate, to: newLanguage)
+                        RecipeCacheService.shared.storeTranslation(translated, recipeIDs: ids, language: newLanguage)
+                        for t in translated {
+                            if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == t.id }) {
+                                var updated = t
+                                updated.language = newLanguage
+                                extraIngredientRecipes[idx] = updated
+                            }
                         }
                     }
                 }
@@ -115,6 +141,25 @@ class RecipeViewModel {
 
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
+
+            if excludeTitles.isEmpty {
+                let cacheKey = RecipeCacheService.cacheKey(
+                    ingredients: ingredientsList,
+                    cuisines: cuisineNames,
+                    servings: servings,
+                    language: language,
+                    exactCount: exactMatchCount,
+                    extraCount: extraIngredientCount
+                )
+                if let cached = RecipeCacheService.shared.cachedResponse(for: cacheKey) {
+                    exactMatchRecipes = cached.exact_match_recipes.map { var r = $0; r.language = language; return r }
+                    extraIngredientRecipes = cached.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
+                    hasResults = true
+                    isLoading = false
+                    return
+                }
+            }
+
             let response = try await OpenAIService.shared.generateRecipes(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
@@ -124,6 +169,18 @@ class RecipeViewModel {
                 extraCount: extraIngredientCount,
                 excludeTitles: excludeTitles
             )
+
+            if excludeTitles.isEmpty {
+                let cacheKey = RecipeCacheService.cacheKey(
+                    ingredients: ingredientsList,
+                    cuisines: cuisineNames,
+                    servings: servings,
+                    language: language,
+                    exactCount: exactMatchCount,
+                    extraCount: extraIngredientCount
+                )
+                RecipeCacheService.shared.store(response: response, for: cacheKey)
+            }
 
             exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
