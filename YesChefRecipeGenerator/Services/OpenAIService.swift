@@ -56,7 +56,8 @@ class OpenAIService {
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
 
-        let systemPrompt = buildSystemPrompt(language: language, exactCount: exactCount, extraCount: extraCount)
+        let isRefresh = !excludeTitles.isEmpty
+        let systemPrompt = buildSystemPrompt(language: language, exactCount: exactCount, extraCount: extraCount, excludeTitles: excludeTitles)
         let userPrompt = buildUserPrompt(ingredients: ingredients, cuisines: cuisines, servings: servings, language: language, totalCount: exactCount + extraCount, excludeTitles: excludeTitles)
 
         let request = OpenAIChatRequest(
@@ -65,7 +66,7 @@ class OpenAIService {
                 OpenAIChatMessage(role: "system", content: systemPrompt),
                 OpenAIChatMessage(role: "user", content: userPrompt)
             ],
-            temperature: 0.8,
+            temperature: isRefresh ? 1.2 : 0.8,
             max_tokens: 5000
         )
 
@@ -109,7 +110,7 @@ class OpenAIService {
         }
     }
 
-    private func buildSystemPrompt(language: String, exactCount: Int, extraCount: Int) -> String {
+    private func buildSystemPrompt(language: String, exactCount: Int, extraCount: Int, excludeTitles: [String] = []) -> String {
         let isTurkish = language == "tr"
 
         if isTurkish {
@@ -146,6 +147,7 @@ class OpenAIService {
             }
 
             Kurallar:
+            - Her tarife benzersiz ve yaratıcı bir isim ver. Sıradan veya genel isimler KULLANMA.
             - Tam olarak \(exactCount) exact_match_recipes ve \(extraCount) extra_ingredient_recipes döndür
             - exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır. exact_match_recipes için required_extra_ingredients boş dizi [] olmalı.
             - ÖNEMLİ: extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır. required_extra_ingredients ASLA BOŞ OLMAMALI, her extra_ingredient tarifinde mutlaka 2-4 ek malzeme olmalı (örn: ["krema", "mantar", "parmesan"])
@@ -158,6 +160,7 @@ class OpenAIService {
             - "spices" dizisinde tarifin kullandığı TÜM baharatları listele. Her baharatın 2-3 alternatifi olsun (yerine kullanılabilecek baharatlar).
             - ÖNEMLİ MALZEME TUTARLILIĞI: Adımlarda kullanılan HER malzeme mutlaka "ingredients" veya "required_extra_ingredients" listesinde yer almalı. Örneğin adımlarda "yufka açın" yazıyorsa, yufka mutlaka malzeme listesinde olmalı. Tarifi oluşturduktan sonra adımları tekrar kontrol et ve eksik malzeme varsa ekle. Baharatlar hariç hiçbir malzeme atlanmamalı.
             - HER ŞEY TÜRKÇE OLMALI — İngilizce tek bir kelime bile olmamalı
+            \(excludeTitles.isEmpty ? "" : "\n- ÇOK ÖNEMLİ YASAK LİSTESİ: Aşağıdaki tarifleri KESİNLİKLE TEKRAR VERME. Bu isimlere benzer tarifler de VERME. Tamamen farklı yemek türleri ve pişirme yöntemleri kullan:\n\(excludeTitles.map { "  * \($0)" }.joined(separator: "\n"))")
             """
         } else {
             return """
@@ -191,6 +194,7 @@ class OpenAIService {
             }
 
             Rules:
+            - Give each recipe a unique and creative name. Do NOT use generic or common names.
             - Return exactly \(exactCount) exact_match_recipes and \(extraCount) extra_ingredient_recipes
             - exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter). required_extra_ingredients must be an empty array [] for these.
             - IMPORTANT: extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients. required_extra_ingredients must NEVER be empty for these recipes - always include 2-4 extra ingredients the user didn't provide (e.g. ["cream", "mushrooms", "parmesan"])
@@ -203,6 +207,7 @@ class OpenAIService {
             - In "spices" array, list ALL spices the recipe uses. Each spice must have 2-3 alternatives (substitutes that can replace it).
             - IMPORTANT INGREDIENT CONSISTENCY: Every ingredient used in the steps MUST appear in the "ingredients" or "required_extra_ingredients" list. For example, if a step says "roll out the phyllo dough", then phyllo dough MUST be in the ingredients list. After generating the recipe, review all steps and ensure no ingredient is missing from the lists. Spices are excluded from this rule.
             - Everything must be in English
+            \(excludeTitles.isEmpty ? "" : "\n- CRITICAL BANNED LIST: You MUST NOT repeat ANY of the following recipes. Do NOT generate anything similar to them either. Use completely different dish types and cooking methods:\n\(excludeTitles.map { "  * \($0)" }.joined(separator: "\n"))")
             """
         }
     }
