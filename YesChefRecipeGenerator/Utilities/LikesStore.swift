@@ -14,9 +14,12 @@ class LikesStore {
     var isTranslating: Bool = false
     private let reactionsKey = "recipe_reactions_local"
     private let likedRecipesKey = "liked_recipes_local"
+    private let everLikedKey = "ever_liked_recipe_ids"
+    private var everLikedIds: Set<String> = []
 
     init() {
         loadLocal()
+        everLikedIds = Set(UserDefaults.standard.stringArray(forKey: everLikedKey) ?? [])
         Task { await syncFromSupabase() }
     }
 
@@ -40,6 +43,10 @@ class LikesStore {
             adjustLocalCount(id: id, addingReaction: .like)
             if !likedRecipes.contains(where: { $0.id == id }) {
                 likedRecipes.insert(recipe, at: 0)
+            }
+            if !everLikedIds.contains(id) {
+                everLikedIds.insert(id)
+                UserDefaults.standard.set(Array(everLikedIds), forKey: everLikedKey)
                 StatsStore.shared.incrementLiked()
             }
             saveLocal()
