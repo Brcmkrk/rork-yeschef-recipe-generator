@@ -30,7 +30,7 @@ struct HomeView: View {
             }
             .background(Color(.systemGroupedBackground))
             .onChange(of: lang.current) { _, newValue in
-                viewModel.language = newValue.rawValue
+                viewModel.translateIfNeeded(to: newValue.rawValue)
             }
             .onAppear { viewModel.language = lang.current.rawValue }
             .navigationTitle("YesChef")

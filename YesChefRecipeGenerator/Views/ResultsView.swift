@@ -38,6 +38,19 @@ struct ResultsView: View {
                 likesStore.fetchGlobalCounts(for: allRecipes)
             }
             .background(Color(.systemGroupedBackground))
+            .overlay {
+                if viewModel.isTranslating {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text(lang.t("Translating...", "Çevriliyor..."))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
+                }
+            }
             .navigationTitle(lang.t("Your Recipes", "Tariflerin"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

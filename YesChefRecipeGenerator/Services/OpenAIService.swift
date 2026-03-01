@@ -210,4 +210,62 @@ class OpenAIService {
             """
         }
     }
+
+    func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
+        let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
+        guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
+        guard let url = URL(string: baseURL) else { throw OpenAIError.invalidURL }
+
+        let recipesJSON = try JSONEncoder().encode(recipes)
+        let recipesString = String(data: recipesJSON, encoding: .utf8) ?? "[]"
+
+        let targetLang = language == "tr" ? "Turkish" : "English"
+
+        let systemPrompt = """
+        You are a translator. Translate the given recipe JSON array into \(targetLang).
+        Translate ALL text fields: title, description, cuisine, difficulty, ingredient names, ingredient units, spices_common, spices_optional, required_extra_ingredients, and steps.
+        Keep the same JSON structure. Keep id, calories, servings, and quantity values unchanged.
+        For difficulty, use: \(language == "tr" ? "Kolay/Orta/Zor" : "Easy/Medium/Hard")
+        Respond with ONLY the translated JSON array. No markdown, no extra text.
+        """
+
+        let request = OpenAIChatRequest(
+            model: "gpt-4o-mini",
+            messages: [
+                OpenAIChatMessage(role: "system", content: systemPrompt),
+                OpenAIChatMessage(role: "user", content: recipesString)
+            ],
+            temperature: 0.3,
+            max_tokens: 4000
+        )
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OpenAIError.invalidResponse
+        }
+
+        let chatResponse = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw OpenAIError.invalidResponse
+        }
+
+        let cleaned = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let jsonData = cleaned.data(using: .utf8) else {
+            throw OpenAIError.decodingError("Could not convert translation response to data")
+        }
+
+        return try JSONDecoder().decode([Recipe].self, from: jsonData)
+    }
 }

@@ -24,6 +24,32 @@ class RecipeViewModel {
     }
 
     var language: String = "en"
+    var isTranslating: Bool = false
+
+    func translateIfNeeded(to newLanguage: String) {
+        guard newLanguage != language else { return }
+        let oldLanguage = language
+        language = newLanguage
+        guard hasResults, !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else { return }
+        guard (exactMatchRecipes.first?.language ?? oldLanguage) != newLanguage else { return }
+
+        isTranslating = true
+        Task {
+            do {
+                if !exactMatchRecipes.isEmpty {
+                    let translated = try await OpenAIService.shared.translateRecipes(exactMatchRecipes, to: newLanguage)
+                    exactMatchRecipes = translated.map { var r = $0; r.language = newLanguage; return r }
+                }
+                if !extraIngredientRecipes.isEmpty {
+                    let translated = try await OpenAIService.shared.translateRecipes(extraIngredientRecipes, to: newLanguage)
+                    extraIngredientRecipes = translated.map { var r = $0; r.language = newLanguage; return r }
+                }
+            } catch {
+                // keep originals on failure
+            }
+            isTranslating = false
+        }
+    }
 
     func fillRandom() {
         ingredientsText = IngredientPool.random(count: Int.random(in: 4...7), language: language).joined(separator: ", ")
