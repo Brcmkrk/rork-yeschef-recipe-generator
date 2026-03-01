@@ -230,7 +230,7 @@ struct ProfileView: View {
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(triedStore.recipes) { recipe in
-                        recipeRow(recipe, icon: "checkmark.circle.fill", iconColor: .green) {
+                        recipeRow(recipe, icon: "checkmark.circle.fill", iconColor: .green, showLikeToggle: true) {
                             triedStore.remove(recipe)
                         }
                     }
@@ -240,7 +240,7 @@ struct ProfileView: View {
         }
     }
 
-    private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, onDelete: @escaping () -> Void) -> some View {
+    private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, onDelete: @escaping () -> Void, showLikeToggle: Bool = false) -> some View {
         Button {
             selectedRecipeId = recipe.id
         } label: {
@@ -281,6 +281,21 @@ struct ProfileView: View {
                 }
 
                 Spacer()
+
+                if showLikeToggle {
+                    Button {
+                        withAnimation(.spring(duration: 0.3)) {
+                            likesStore.toggleLike(for: recipe.id, recipe: recipe)
+                        }
+                    } label: {
+                        Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "heart.fill" : "heart")
+                            .font(.body)
+                            .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .pink : .secondary)
+                            .contentTransition(.symbolEffect(.replace))
+                            .padding(8)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button {
                     withAnimation(.spring(duration: 0.3)) {

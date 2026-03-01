@@ -8,26 +8,37 @@ struct CookingModeView: View {
     @Environment(TriedRecipesStore.self) private var triedStore
     @State private var currentStep: Int = 0
     @State private var timers: [StepTimer] = []
+    @State private var showPostRating: Bool = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                progressBar
+            ZStack {
+                VStack(spacing: 0) {
+                    progressBar
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        stepCounter
-                        currentStepCard
-                        timerSection
-                        navigationButtons
-                        if currentStep < recipe.steps.count - 1 {
-                            nextStepPreview
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            stepCounter
+                            currentStepCard
+                            timerSection
+                            navigationButtons
+                            if currentStep < recipe.steps.count - 1 {
+                                nextStepPreview
+                            }
                         }
+                        .padding(16)
                     }
-                    .padding(16)
+
+                    Spacer(minLength: 0)
                 }
 
-                Spacer(minLength: 0)
+                if showPostRating {
+                    PostCookingRatingView(recipe: recipe) {
+                        dismiss()
+                        onFinishCooking?()
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(lang.t("Cooking Mode", "Pişirme Modu"))
@@ -144,9 +155,8 @@ struct CookingModeView: View {
             } else {
                 Button {
                     triedStore.add(recipe)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        dismiss()
-                        onFinishCooking?()
+                    withAnimation(.spring(duration: 0.4)) {
+                        showPostRating = true
                     }
                 } label: {
                     Label(lang.t("Finish", "Bitir"), systemImage: "checkmark")
