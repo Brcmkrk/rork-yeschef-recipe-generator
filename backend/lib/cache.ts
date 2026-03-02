@@ -23,8 +23,8 @@ interface AiCacheRow {
   servings: number | null;
   prep_minutes: number | null;
   cook_minutes: number | null;
-  required_ingredients: string[];
-  optional_ingredients: string[];
+  required_ingredients: string;
+  optional_ingredients: string | null;
   recipe_data: any;
   created_at: string;
 }
@@ -41,10 +41,10 @@ export async function getCachedRecipesByIngredients(
   if (normalized.length === 0) return [];
 
   try {
-    const pgArray = `{${normalized.join(',')}}`;
+    const csvInput = normalized.join(',');
 
     const { data: fullMatches, error: fullErr } = await supabase
-      .rpc('match_recipes_full', { input_ingredients: pgArray })
+      .rpc('match_recipes_full', { input_ingredients: csvInput })
       .limit(limit);
 
     if (!fullErr && fullMatches && fullMatches.length >= limit) {
@@ -64,7 +64,7 @@ export async function getCachedRecipesByIngredients(
     if (collected.length < limit) {
       const remaining = limit - collected.length;
       const { data: overlapMatches } = await supabase
-        .rpc('match_recipes_overlap', { input_ingredients: pgArray })
+        .rpc('match_recipes_overlap', { input_ingredients: csvInput })
         .limit(remaining + 5);
 
       if (overlapMatches) {
