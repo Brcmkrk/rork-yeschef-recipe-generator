@@ -5,6 +5,7 @@ import { buildSystemPrompt, buildUserPrompt } from "./lib/prompts";
 import {
   getCachedRecipesByIngredients,
   getPopularRecipes,
+  saveRecipesToCache,
 } from "./lib/cache";
 
 const openai = new OpenAI({
@@ -57,34 +58,25 @@ app.post("/generate-recipe", async (c) => {
       return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
     }
 
+    const maxCached = 2;
     const cachedRecipes = excludeTitles.length === 0
-      ? await getCachedRecipesByIngredients(ingredients, 2)
+      ? await getCachedRecipesByIngredients(ingredients, maxCached)
       : [];
 
-    const cachedExact = cachedRecipes.slice(0, 1);
-    const cachedExtra = cachedRecipes.slice(1, 2);
+    const cachedCount = Math.min(cachedRecipes.length, maxCached);
+    const usedCached = cachedRecipes.slice(0, cachedCount);
 
-    const aiExactNeeded = exactCount - cachedExact.length;
-    const aiExtraNeeded = extraCount - cachedExtra.length;
-    const aiTotal = aiExactNeeded + aiExtraNeeded;
+    const aiNeeded = 4 - cachedCount;
+    const aiExactNeeded = Math.max(1, exactCount - Math.min(cachedCount, 1));
+    const aiExtraNeeded = aiNeeded - aiExactNeeded;
 
-    const cachedTitles = [...cachedExact, ...cachedExtra, ...excludeTitles.map((t: string) => t)];
     const allExcludeTitles = [
       ...excludeTitles,
-      ...cachedExact.map((r: any) => r.title),
-      ...cachedExtra.map((r: any) => r.title),
+      ...usedCached.map((r: any) => r.title),
     ];
 
-    if (aiTotal <= 0) {
-      return c.json({
-        exact_match_recipes: cachedExact.slice(0, exactCount),
-        extra_ingredient_recipes: cachedExtra.slice(0, extraCount),
-        _cache: { hit: true, cached_count: cachedExact.length + cachedExtra.length, fresh_count: 0 },
-      });
-    }
-
     const systemPrompt = buildSystemPrompt(language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
-    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiTotal, allExcludeTitles);
+    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiNeeded, allExcludeTitles);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -98,11 +90,11 @@ app.post("/generate-recipe", async (c) => {
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      if (cachedRecipes.length > 0) {
+      if (usedCached.length > 0) {
         return c.json({
-          exact_match_recipes: cachedExact,
-          extra_ingredient_recipes: cachedExtra,
-          _cache: { hit: true, cached_count: cachedRecipes.length, fresh_count: 0 },
+          exact_match_recipes: usedCached.slice(0, exactCount),
+          extra_ingredient_recipes: [],
+          _cache: { hit: true, cached_count: cachedCount, fresh_count: 0 },
         });
       }
       return c.json({ error: "No response from AI" }, 500);
@@ -115,17 +107,41 @@ app.post("/generate-recipe", async (c) => {
 
       const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded);
       const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
+      const allFresh = [...freshExact, ...freshExtra];
 
-      const finalExact = [...cachedExact, ...freshExact].slice(0, exactCount);
-      const finalExtra = [...cachedExtra, ...freshExtra].slice(0, extraCount);
+      let finalExact: any[] = [];
+      let finalExtra: any[] = [];
+
+      if (cachedCount >= 2) {
+        finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
+        finalExtra = [usedCached[1], freshExtra[0] || freshExact[1]].filter(Boolean).slice(0, extraCount);
+      } else if (cachedCount === 1) {
+        finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
+        finalExtra = freshExtra.slice(0, extraCount);
+        if (finalExtra.length < extraCount) {
+          finalExtra = [...finalExtra, ...freshExact.slice(1)].slice(0, extraCount);
+        }
+      } else {
+        finalExact = freshExact.slice(0, exactCount);
+        finalExtra = freshExtra.slice(0, extraCount);
+      }
+
+      const recipesToCache = 2 - cachedCount;
+      if (recipesToCache > 0 && allFresh.length > 0) {
+        const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
+        const toSave = shuffled.slice(0, recipesToCache);
+        saveRecipesToCache(toSave, ingredients).catch(err =>
+          console.error('[CACHE] Background save failed:', err)
+        );
+      }
 
       return c.json({
         exact_match_recipes: finalExact,
         extra_ingredient_recipes: finalExtra,
         _cache: {
-          hit: cachedRecipes.length > 0,
-          cached_count: cachedExact.length + cachedExtra.length,
-          fresh_count: freshExact.length + freshExtra.length,
+          hit: cachedCount > 0,
+          cached_count: cachedCount,
+          fresh_count: allFresh.length,
         },
       });
     } catch {

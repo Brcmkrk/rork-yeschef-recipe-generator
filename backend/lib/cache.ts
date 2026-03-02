@@ -102,6 +102,50 @@ function rowToRecipe(row: any): CachedRecipe {
   };
 }
 
+export async function saveRecipesToCache(recipes: any[], userIngredients: string[]): Promise<void> {
+  const normalized = normalizeIngredients(userIngredients);
+  if (recipes.length === 0) return;
+
+  try {
+    for (const recipe of recipes) {
+      const recipeId = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const title = recipe.title || 'Untitled';
+      const cuisine = recipe.cuisine || null;
+      const difficulty = recipe.difficulty || null;
+      const servings = recipe.servings || 2;
+
+      const ingredientNames = (recipe.ingredients || []).map((i: any) =>
+        (typeof i === 'string' ? i : i.name || '').toLowerCase().trim()
+      ).filter(Boolean);
+
+      const extraIngredients = (recipe.required_extra_ingredients || []).map((i: string) =>
+        i.toLowerCase().trim()
+      ).filter(Boolean);
+
+      const allRequired = [...new Set([...normalized, ...ingredientNames])];
+
+      const { error } = await supabase.from('ai_cache').insert({
+        recipe_id: recipeId,
+        title,
+        cuisine,
+        difficulty,
+        servings,
+        required_ingredients: allRequired,
+        optional_ingredients: extraIngredients.length > 0 ? extraIngredients : null,
+        recipe_data: recipe,
+      });
+
+      if (error) {
+        console.error('[CACHE] Failed to save recipe to cache:', error.message);
+      } else {
+        console.log(`[CACHE] Saved recipe to cache: ${title}`);
+      }
+    }
+  } catch (err) {
+    console.error('[CACHE] Error saving recipes to cache:', err);
+  }
+}
+
 export async function getPopularRecipes(
   language: string,
   limit: number = 10
