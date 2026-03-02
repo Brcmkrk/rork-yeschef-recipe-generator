@@ -140,12 +140,16 @@ export const recipeRouter = createTRPCRouter({
           finalExtra = freshExtra.slice(0, input.extraCount);
         }
 
-        if (allFresh.length > 0) {
-          const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
+        if (cachedCount <= 1) {
+          const allFinal = [...finalExact, ...finalExtra];
+          const shuffled = [...allFinal].sort(() => Math.random() - 0.5);
           const toSave = shuffled.slice(0, 2);
-          saveRecipesToCache(toSave, input.ingredients).catch(err =>
-            console.error('[CACHE] Background save failed:', err)
-          );
+          console.log('[TRPC] cachedCount=', cachedCount, '=> saving', toSave.length, 'to cache');
+          try {
+            await saveRecipesToCache(toSave);
+          } catch (err) {
+            console.error('[TRPC] Cache save error:', err);
+          }
         }
 
         return {

@@ -112,54 +112,33 @@ function rowToRecipe(row: any): CachedRecipe {
   };
 }
 
-export async function saveRecipesToCache(recipes: any[], userIngredients: string[]): Promise<void> {
+export async function saveRecipesToCache(recipes: any[]): Promise<void> {
   if (recipes.length === 0) return;
 
-  for (const recipe of recipes) {
-    try {
-      const { source, ...cleanRecipe } = recipe;
+  const rows = recipes.map((recipe) => {
+    const { source, language, ...rest } = recipe;
+    const recipeId = `cache_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const recipeData = {
+      ...rest,
+      id: recipeId,
+    };
+    return {
+      recipe_id: recipeId,
+      recipe_data: recipeData,
+    };
+  });
 
-      const slugTitle = (cleanRecipe.title || 'untitled')
-        .toLowerCase()
-        .replace(/[^a-z0-9ğüşıöçâîû\s]/g, '')
-        .replace(/\s+/g, '_')
-        .substring(0, 50);
-      const uniqueRecipeId = `cache_${slugTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  console.log('[CACHE-SAVE] Inserting', rows.length, 'recipes:', rows.map(r => (r.recipe_data as any).title));
 
-      const recipeDataObj = {
-        id: uniqueRecipeId,
-        title: cleanRecipe.title || 'Untitled',
-        calories: cleanRecipe.calories || '300-400',
-        cuisine: cleanRecipe.cuisine || 'International',
-        difficulty: cleanRecipe.difficulty || 'Medium',
-        description: cleanRecipe.description || '',
-        servings: cleanRecipe.servings || 2,
-        ingredients: cleanRecipe.ingredients || [],
-        spices: cleanRecipe.spices || [],
-        required_extra_ingredients: cleanRecipe.required_extra_ingredients || [],
-        steps: cleanRecipe.steps || [],
-      };
+  const { data, error } = await supabase
+    .from('ai_cache')
+    .insert(rows)
+    .select();
 
-      const insertData = {
-        recipe_id: uniqueRecipeId,
-        recipe_data: recipeDataObj,
-      };
-
-      console.log('[CACHE-SAVE] Inserting:', recipeDataObj.title, '| id:', uniqueRecipeId);
-
-      const { data, error } = await supabase
-        .from('ai_cache')
-        .insert(insertData)
-        .select();
-
-      if (error) {
-        console.error('[CACHE-SAVE] FAILED:', recipeDataObj.title, '| message:', error.message, '| code:', error.code);
-      } else {
-        console.log('[CACHE-SAVE] SUCCESS:', recipeDataObj.title, '| db row:', data?.[0]?.id);
-      }
-    } catch (err) {
-      console.error('[CACHE-SAVE] Exception:', err);
-    }
+  if (error) {
+    console.error('[CACHE-SAVE] FAILED:', error.message, '| code:', error.code, '| hint:', (error as any).hint, '| details:', error.details);
+  } else {
+    console.log('[CACHE-SAVE] SUCCESS: inserted', data?.length, 'rows');
   }
 }
 
