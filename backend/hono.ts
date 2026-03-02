@@ -154,10 +154,9 @@ app.post("/generate-recipe", async (c) => {
         finalExtra = freshExtra.slice(0, extraCount);
       }
 
-      const recipesToCache = Math.min(2 - cachedCount, 2);
-      if (recipesToCache > 0 && allFresh.length > 0) {
+      if (allFresh.length > 0) {
         const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
-        const toSave = shuffled.slice(0, recipesToCache);
+        const toSave = shuffled.slice(0, 2);
         console.log('[GENERATE] Saving', toSave.length, 'recipes to cache:', toSave.map((r: any) => r.title));
         saveRecipesToCache(toSave, ingredients)
           .then(() => console.log('[GENERATE] Cache save done'))
