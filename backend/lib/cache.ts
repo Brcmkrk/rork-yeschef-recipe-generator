@@ -152,7 +152,7 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         steps: cleanRecipe.steps || [],
       };
 
-      const insertData = {
+      const insertData: Record<string, any> = {
         recipe_id: uniqueRecipeId,
         title,
         cuisine,
@@ -163,9 +163,12 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         required_ingredients: allRequired,
         optional_ingredients: extraIngredients,
         recipe_data: recipeDataObj,
+        created_at: new Date().toISOString(),
       };
 
-      console.log('[CACHE-SAVE] Inserting:', title, '| id:', uniqueRecipeId);
+      console.log('[CACHE-SAVE] Inserting:', title, '| id:', uniqueRecipeId, '| data keys:', Object.keys(insertData));
+      console.log('[CACHE-SAVE] required_ingredients type:', typeof allRequired, '| length:', allRequired.length, '| sample:', allRequired.slice(0, 3));
+      console.log('[CACHE-SAVE] recipe_data type:', typeof recipeDataObj);
 
       const { data, error } = await supabase
         .from('ai_cache')
@@ -173,7 +176,23 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         .select();
 
       if (error) {
-        console.error('[CACHE-SAVE] FAILED:', title, '|', error.message, '| code:', error.code, '| details:', error.details);
+        console.error('[CACHE-SAVE] FAILED:', title, '| message:', error.message, '| code:', error.code, '| details:', JSON.stringify(error.details), '| hint:', (error as any).hint);
+
+        console.log('[CACHE-SAVE] Retrying with stringified recipe_data...');
+        insertData.recipe_data = JSON.stringify(recipeDataObj);
+        insertData.required_ingredients = JSON.stringify(allRequired);
+        insertData.optional_ingredients = JSON.stringify(extraIngredients);
+
+        const { data: retryData, error: retryError } = await supabase
+          .from('ai_cache')
+          .insert(insertData)
+          .select();
+
+        if (retryError) {
+          console.error('[CACHE-SAVE] RETRY ALSO FAILED:', retryError.message, '| code:', retryError.code);
+        } else {
+          console.log('[CACHE-SAVE] RETRY SUCCESS:', title, '| db row:', retryData?.[0]?.id);
+        }
       } else {
         console.log('[CACHE-SAVE] SUCCESS:', title, '| db row:', data?.[0]?.id);
       }
