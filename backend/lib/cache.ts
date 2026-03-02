@@ -40,12 +40,16 @@ export async function getCachedRecipesByIngredients(
     if (!allCached || allCached.length === 0) return [];
 
     const scored = allCached.map(row => {
-      const reqIngredients: string[] = Array.isArray(row.required_ingredients)
-        ? row.required_ingredients.map((s: string) => s.toLowerCase().trim())
-        : [];
+      const data = typeof row.recipe_data === 'string'
+        ? JSON.parse(row.recipe_data)
+        : (row.recipe_data || {});
 
-      const matchCount = reqIngredients.filter(i => normalized.includes(i)).length;
-      const totalRequired = reqIngredients.length;
+      const ingredientNames: string[] = (data.ingredients || [])
+        .map((i: any) => (typeof i === 'string' ? i : i.name || '').toLowerCase().trim())
+        .filter(Boolean);
+
+      const matchCount = ingredientNames.filter(i => normalized.includes(i)).length;
+      const totalRequired = ingredientNames.length;
       const matchRatio = totalRequired > 0 ? matchCount / totalRequired : 0;
 
       return { row, matchCount, matchRatio, totalRequired };
@@ -95,12 +99,12 @@ function rowToRecipe(row: any): CachedRecipe {
 
   return {
     id: data.id || row.recipe_id || `cache_${row.id}`,
-    title: data.title || row.title || 'Untitled',
+    title: data.title || 'Untitled',
     calories: data.calories || '300-400',
-    cuisine: data.cuisine || row.cuisine || 'International',
-    difficulty: data.difficulty || row.difficulty || 'Medium',
+    cuisine: data.cuisine || 'International',
+    difficulty: data.difficulty || 'Medium',
     description: data.description || '',
-    servings: data.servings || row.servings || 2,
+    servings: data.servings || 2,
     ingredients: data.ingredients || [],
     spices: data.spices || [],
     required_extra_ingredients: data.required_extra_ingredients || [],
@@ -109,41 +113,25 @@ function rowToRecipe(row: any): CachedRecipe {
 }
 
 export async function saveRecipesToCache(recipes: any[], userIngredients: string[]): Promise<void> {
-  const normalized = normalizeIngredients(userIngredients);
   if (recipes.length === 0) return;
 
   for (const recipe of recipes) {
     try {
-      const title = recipe.title || 'Untitled';
-      const cuisine = recipe.cuisine || 'International';
-      const difficulty = recipe.difficulty || 'Medium';
-      const servings = recipe.servings || 2;
+      const { source, ...cleanRecipe } = recipe;
 
-      const ingredientNames = (recipe.ingredients || [])
-        .map((i: any) => (typeof i === 'string' ? i : i.name || '').toLowerCase().trim())
-        .filter(Boolean);
-
-      const extraIngredients = (recipe.required_extra_ingredients || [])
-        .map((i: string) => (typeof i === 'string' ? i : '').toLowerCase().trim())
-        .filter(Boolean);
-
-      const allRequired = [...new Set([...normalized, ...ingredientNames])];
-
-      const slugTitle = title
+      const slugTitle = (cleanRecipe.title || 'untitled')
         .toLowerCase()
         .replace(/[^a-z0-9ğüşıöçâîû\s]/g, '')
         .replace(/\s+/g, '_')
         .substring(0, 50);
       const uniqueRecipeId = `cache_${slugTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-      const { source, ...cleanRecipe } = recipe;
-
       const recipeDataObj = {
         id: uniqueRecipeId,
-        title: cleanRecipe.title,
+        title: cleanRecipe.title || 'Untitled',
         calories: cleanRecipe.calories || '300-400',
-        cuisine: cleanRecipe.cuisine,
-        difficulty: cleanRecipe.difficulty,
+        cuisine: cleanRecipe.cuisine || 'International',
+        difficulty: cleanRecipe.difficulty || 'Medium',
         description: cleanRecipe.description || '',
         servings: cleanRecipe.servings || 2,
         ingredients: cleanRecipe.ingredients || [],
@@ -152,23 +140,12 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         steps: cleanRecipe.steps || [],
       };
 
-      const insertData: Record<string, any> = {
+      const insertData = {
         recipe_id: uniqueRecipeId,
-        title,
-        cuisine,
-        difficulty,
-        servings,
-        prep_minutes: 10,
-        cook_minutes: 15,
-        required_ingredients: allRequired,
-        optional_ingredients: extraIngredients,
         recipe_data: recipeDataObj,
-        created_at: new Date().toISOString(),
       };
 
-      console.log('[CACHE-SAVE] Inserting:', title, '| id:', uniqueRecipeId, '| data keys:', Object.keys(insertData));
-      console.log('[CACHE-SAVE] required_ingredients type:', typeof allRequired, '| length:', allRequired.length, '| sample:', allRequired.slice(0, 3));
-      console.log('[CACHE-SAVE] recipe_data type:', typeof recipeDataObj);
+      console.log('[CACHE-SAVE] Inserting:', recipeDataObj.title, '| id:', uniqueRecipeId);
 
       const { data, error } = await supabase
         .from('ai_cache')
@@ -176,25 +153,9 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         .select();
 
       if (error) {
-        console.error('[CACHE-SAVE] FAILED:', title, '| message:', error.message, '| code:', error.code, '| details:', JSON.stringify(error.details), '| hint:', (error as any).hint);
-
-        console.log('[CACHE-SAVE] Retrying with stringified recipe_data...');
-        insertData.recipe_data = JSON.stringify(recipeDataObj);
-        insertData.required_ingredients = JSON.stringify(allRequired);
-        insertData.optional_ingredients = JSON.stringify(extraIngredients);
-
-        const { data: retryData, error: retryError } = await supabase
-          .from('ai_cache')
-          .insert(insertData)
-          .select();
-
-        if (retryError) {
-          console.error('[CACHE-SAVE] RETRY ALSO FAILED:', retryError.message, '| code:', retryError.code);
-        } else {
-          console.log('[CACHE-SAVE] RETRY SUCCESS:', title, '| db row:', retryData?.[0]?.id);
-        }
+        console.error('[CACHE-SAVE] FAILED:', recipeDataObj.title, '| message:', error.message, '| code:', error.code);
       } else {
-        console.log('[CACHE-SAVE] SUCCESS:', title, '| db row:', data?.[0]?.id);
+        console.log('[CACHE-SAVE] SUCCESS:', recipeDataObj.title, '| db row:', data?.[0]?.id);
       }
     } catch (err) {
       console.error('[CACHE-SAVE] Exception:', err);

@@ -186,47 +186,34 @@ app.get("/test-cache-insert", async (c) => {
   try {
     const { supabase } = await import('./lib/supabase');
 
-    const testData: Record<string, any> = {
-      recipe_id: `test_${Date.now()}`,
-      title: 'Test Recipe',
-      cuisine: 'Test',
-      difficulty: 'Easy',
-      servings: 2,
-      prep_minutes: 5,
-      cook_minutes: 10,
-      required_ingredients: ['tomato', 'onion'],
-      optional_ingredients: ['garlic'],
-      recipe_data: { id: 'test', title: 'Test Recipe', steps: ['Step 1'] },
-      created_at: new Date().toISOString(),
+    const testRecipeId = `test_${Date.now()}`;
+    const insertData = {
+      recipe_id: testRecipeId,
+      recipe_data: {
+        id: testRecipeId,
+        title: 'Test Recipe',
+        calories: '200-300',
+        cuisine: 'Test',
+        difficulty: 'Easy',
+        description: 'A test recipe',
+        servings: 2,
+        ingredients: [{ name: 'tomato', quantity: '2', unit: 'pieces' }],
+        spices: [],
+        required_extra_ingredients: [],
+        steps: ['Step 1', 'Step 2'],
+      },
     };
 
-    console.log('[TEST] Attempting insert with object types...');
-    const { data: d1, error: e1 } = await supabase.from('ai_cache').insert(testData).select();
+    console.log('[TEST] Inserting with new structure...');
+    const { data, error } = await supabase.from('ai_cache').insert(insertData).select();
 
-    if (e1) {
-      console.log('[TEST] Object insert failed:', e1.message, '| code:', e1.code, '| hint:', (e1 as any).hint);
-
-      const testData2: Record<string, any> = {
-        ...testData,
-        recipe_id: `test2_${Date.now()}`,
-        required_ingredients: JSON.stringify(['tomato', 'onion']),
-        optional_ingredients: JSON.stringify(['garlic']),
-        recipe_data: JSON.stringify({ id: 'test', title: 'Test Recipe', steps: ['Step 1'] }),
-      };
-
-      console.log('[TEST] Attempting insert with stringified types...');
-      const { data: d2, error: e2 } = await supabase.from('ai_cache').insert(testData2).select();
-
-      if (e2) {
-        return c.json({
-          status: 'both_failed',
-          object_error: { message: e1.message, code: e1.code, hint: (e1 as any).hint, details: e1.details },
-          string_error: { message: e2.message, code: e2.code, hint: (e2 as any).hint, details: e2.details },
-        }, 500);
-      }
-      return c.json({ status: 'string_worked', data: d2 });
+    if (error) {
+      return c.json({
+        status: 'failed',
+        error: { message: error.message, code: error.code, hint: (error as any).hint, details: error.details },
+      }, 500);
     }
-    return c.json({ status: 'object_worked', data: d1 });
+    return c.json({ status: 'success', data });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
