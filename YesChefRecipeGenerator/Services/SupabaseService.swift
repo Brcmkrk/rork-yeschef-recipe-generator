@@ -246,4 +246,36 @@ class SupabaseService {
         let results = (try? JSONDecoder().decode([SupabaseTriedRecipe].self, from: data)) ?? []
         return results.first
     }
+
+    func saveRecipesToCache(_ recipes: [Recipe]) async {
+        guard isConfigured, !recipes.isEmpty else { return }
+
+        for recipe in recipes {
+            let recipeId = "cache_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8))"
+            let recipeObj = encodeRecipeForDB(recipe)
+
+            var recipeDict = (recipeObj as? [String: Any]) ?? [:]
+            recipeDict["id"] = recipeId
+
+            let body: [String: Any] = [
+                "recipe_id": recipeId,
+                "recipe_data": recipeDict
+            ]
+
+            guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
+                  let request = makeRequest(path: "ai_cache", method: "POST", body: bodyData) else { continue }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+                    let respBody = String(data: data, encoding: .utf8) ?? "unknown"
+                    print("[SupabaseService] ai_cache POST failed: \(http.statusCode) - \(respBody)")
+                } else {
+                    print("[SupabaseService] ai_cache saved: \(recipe.title)")
+                }
+            } catch {
+                print("[SupabaseService] ai_cache error: \(error.localizedDescription)")
+            }
+        }
+    }
 }

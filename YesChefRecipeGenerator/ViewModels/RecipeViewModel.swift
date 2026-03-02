@@ -157,6 +157,16 @@ class RecipeViewModel {
             extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
             cachedCount = response._cache?.cached_count ?? 0
             hasResults = true
+
+            let cacheHit = response._cache?.cached_count ?? 0
+            if cacheHit <= 1 {
+                let allRecipes = exactMatchRecipes + extraIngredientRecipes
+                let shuffled = allRecipes.shuffled()
+                let toCache = Array(shuffled.prefix(2))
+                Task {
+                    await SupabaseService.shared.saveRecipesToCache(toCache)
+                }
+            }
         } catch is CancellationError {
             // cancelled
         } catch {
