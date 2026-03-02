@@ -126,8 +126,7 @@ class LikesStore {
                 mergedReactions[r.recipe_id] = type
 
                 if type == .like, !hiddenIds.contains(r.recipe_id),
-                   let recipeData = r.recipe_data.data(using: .utf8),
-                   let recipe = try? JSONDecoder().decode(Recipe.self, from: recipeData) {
+                   let recipe = r.recipe_data.toRecipe() {
                     mergedLiked.append(recipe)
                 }
             }
@@ -148,7 +147,7 @@ class LikesStore {
             likedRecipes = mergedLiked
             saveLocal()
         } catch {
-            // keep local data on failure
+            // keep local
         }
     }
 

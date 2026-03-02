@@ -26,84 +26,76 @@ export async function getCachedRecipesByIngredients(
   if (normalized.length === 0) return [];
 
   try {
-    console.log('[CACHE] Searching for ingredients:', normalized);
-
-    const { data: fullMatches, error: fullErr } = await supabase
+    const { data: allCached, error } = await supabase
       .from('ai_cache')
       .select('*')
-      .containedBy('required_ingredients', normalized)
-      .limit(limit);
+      .order('created_at', { ascending: false })
+      .limit(200);
 
-    if (fullErr) {
-      console.error('[CACHE] Full match query error:', fullErr.message);
-    } else {
-      console.log('[CACHE] Full matches found:', fullMatches?.length || 0);
+    if (error) {
+      console.error('[CACHE] Query error:', error.message);
+      return [];
     }
 
-    if (!fullErr && fullMatches && fullMatches.length >= limit) {
-      return fullMatches.slice(0, limit).map(rowToRecipe);
-    }
+    if (!allCached || allCached.length === 0) return [];
+
+    const scored = allCached.map(row => {
+      const reqIngredients: string[] = Array.isArray(row.required_ingredients)
+        ? row.required_ingredients.map((s: string) => s.toLowerCase().trim())
+        : [];
+
+      const matchCount = reqIngredients.filter(i => normalized.includes(i)).length;
+      const totalRequired = reqIngredients.length;
+      const matchRatio = totalRequired > 0 ? matchCount / totalRequired : 0;
+
+      return { row, matchCount, matchRatio, totalRequired };
+    });
+
+    const fullMatches = scored
+      .filter(s => s.totalRequired > 0 && s.matchRatio >= 1.0)
+      .sort((a, b) => b.matchCount - a.matchCount);
+
+    const partialMatches = scored
+      .filter(s => s.totalRequired > 0 && s.matchRatio >= 0.5 && s.matchRatio < 1.0)
+      .sort((a, b) => b.matchRatio - a.matchRatio);
 
     const collected: CachedRecipe[] = [];
     const usedIds = new Set<string>();
 
-    if (fullMatches) {
-      for (const row of fullMatches) {
-        collected.push(rowToRecipe(row));
-        usedIds.add(row.recipe_id);
+    for (const { row } of fullMatches) {
+      if (collected.length >= limit) break;
+      const recipe = rowToRecipe(row);
+      if (!usedIds.has(recipe.id)) {
+        collected.push(recipe);
+        usedIds.add(recipe.id);
       }
     }
 
-    if (collected.length < limit) {
-      const remaining = limit - collected.length;
-
-      const { data: overlapMatches, error: overlapErr } = await supabase
-        .from('ai_cache')
-        .select('*')
-        .overlaps('required_ingredients', normalized)
-        .limit(remaining + 10);
-
-      if (overlapErr) {
-        console.error('[CACHE] Overlap query error:', overlapErr.message);
-      } else {
-        console.log('[CACHE] Overlap matches found:', overlapMatches?.length || 0);
-      }
-
-      if (overlapMatches) {
-        const scored = overlapMatches
-          .filter(row => !usedIds.has(row.recipe_id))
-          .map(row => {
-            const reqIngredients: string[] = Array.isArray(row.required_ingredients)
-              ? row.required_ingredients
-              : (typeof row.required_ingredients === 'string'
-                ? row.required_ingredients.replace(/[{}]/g, '').split(',').map((s: string) => s.trim())
-                : []);
-            const overlap = reqIngredients.filter((i: string) => normalized.includes(i.toLowerCase())).length;
-            return { row, overlap };
-          })
-          .sort((a, b) => b.overlap - a.overlap);
-
-        for (const { row } of scored) {
-          if (collected.length >= limit) break;
-          collected.push(rowToRecipe(row));
-          usedIds.add(row.recipe_id);
-        }
+    for (const { row } of partialMatches) {
+      if (collected.length >= limit) break;
+      const recipe = rowToRecipe(row);
+      if (!usedIds.has(recipe.id)) {
+        collected.push(recipe);
+        usedIds.add(recipe.id);
       }
     }
 
-    console.log('[CACHE] Total cached recipes returned:', collected.length);
+    console.log('[CACHE] Found', collected.length, 'cached recipes for ingredients:', normalized.join(', '));
     return collected;
   } catch (err) {
-    console.error('[CACHE] Error fetching cached recipes:', err);
+    console.error('[CACHE] Error:', err);
     return [];
   }
 }
 
 function rowToRecipe(row: any): CachedRecipe {
-  const data = row.recipe_data || {};
+  const data = typeof row.recipe_data === 'string'
+    ? JSON.parse(row.recipe_data)
+    : (row.recipe_data || {});
+
   return {
-    id: data.id || row.recipe_id,
-    title: data.title || row.title,
+    id: data.id || row.recipe_id || `cache_${row.id}`,
+    title: data.title || row.title || 'Untitled',
     calories: data.calories || '300-400',
     cuisine: data.cuisine || row.cuisine || 'International',
     difficulty: data.difficulty || row.difficulty || 'Medium',
@@ -118,13 +110,7 @@ function rowToRecipe(row: any): CachedRecipe {
 
 export async function saveRecipesToCache(recipes: any[], userIngredients: string[]): Promise<void> {
   const normalized = normalizeIngredients(userIngredients);
-  if (recipes.length === 0) {
-    console.log('[CACHE-SAVE] No recipes to save, returning');
-    return;
-  }
-
-  console.log('[CACHE-SAVE] === START SAVING', recipes.length, 'recipes ===');
-  console.log('[CACHE-SAVE] User ingredients:', normalized);
+  if (recipes.length === 0) return;
 
   for (const recipe of recipes) {
     try {
@@ -133,13 +119,13 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
       const difficulty = recipe.difficulty || 'Medium';
       const servings = recipe.servings || 2;
 
-      const ingredientNames = (recipe.ingredients || []).map((i: any) =>
-        (typeof i === 'string' ? i : i.name || '').toLowerCase().trim()
-      ).filter(Boolean);
+      const ingredientNames = (recipe.ingredients || [])
+        .map((i: any) => (typeof i === 'string' ? i : i.name || '').toLowerCase().trim())
+        .filter(Boolean);
 
-      const extraIngredients = (recipe.required_extra_ingredients || []).map((i: string) =>
-        (typeof i === 'string' ? i : '').toLowerCase().trim()
-      ).filter(Boolean);
+      const extraIngredients = (recipe.required_extra_ingredients || [])
+        .map((i: string) => (typeof i === 'string' ? i : '').toLowerCase().trim())
+        .filter(Boolean);
 
       const allRequired = [...new Set([...normalized, ...ingredientNames])];
 
@@ -148,11 +134,25 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         .replace(/[^a-z0-9ğüşıöçâîû\s]/g, '')
         .replace(/\s+/g, '_')
         .substring(0, 50);
-      const uniqueRecipeId = `${slugTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const uniqueRecipeId = `cache_${slugTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-      const { source, ...recipeWithoutSource } = recipe;
+      const { source, ...cleanRecipe } = recipe;
 
-      const insertData: Record<string, any> = {
+      const recipeDataObj = {
+        id: uniqueRecipeId,
+        title: cleanRecipe.title,
+        calories: cleanRecipe.calories || '300-400',
+        cuisine: cleanRecipe.cuisine,
+        difficulty: cleanRecipe.difficulty,
+        description: cleanRecipe.description || '',
+        servings: cleanRecipe.servings || 2,
+        ingredients: cleanRecipe.ingredients || [],
+        spices: cleanRecipe.spices || [],
+        required_extra_ingredients: cleanRecipe.required_extra_ingredients || [],
+        steps: cleanRecipe.steps || [],
+      };
+
+      const insertData = {
         recipe_id: uniqueRecipeId,
         title,
         cuisine,
@@ -162,11 +162,10 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         cook_minutes: 15,
         required_ingredients: allRequired,
         optional_ingredients: extraIngredients,
-        recipe_data: recipeWithoutSource,
+        recipe_data: recipeDataObj,
       };
 
-      console.log('[CACHE-SAVE] Inserting recipe:', title, '| recipe_id:', uniqueRecipeId);
-      console.log('[CACHE-SAVE] Insert payload:', JSON.stringify(insertData));
+      console.log('[CACHE-SAVE] Inserting:', title, '| id:', uniqueRecipeId);
 
       const { data, error } = await supabase
         .from('ai_cache')
@@ -174,13 +173,12 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         .select();
 
       if (error) {
-        console.error('[CACHE-SAVE] INSERT FAILED for', title);
-        console.error('[CACHE-SAVE] Error:', JSON.stringify({ message: error.message, code: error.code, details: error.details, hint: error.hint }));
+        console.error('[CACHE-SAVE] FAILED:', title, '|', error.message, '| code:', error.code, '| details:', error.details);
       } else {
-        console.log('[CACHE-SAVE] INSERT SUCCESS:', title, '| db id:', data?.[0]?.id);
+        console.log('[CACHE-SAVE] SUCCESS:', title, '| db row:', data?.[0]?.id);
       }
     } catch (err) {
-      console.error('[CACHE] Exception saving recipe:', err);
+      console.error('[CACHE-SAVE] Exception:', err);
     }
   }
 }

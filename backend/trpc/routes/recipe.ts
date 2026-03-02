@@ -47,19 +47,35 @@ export const recipeRouter = createTRPCRouter({
         throw new Error("Rate limit exceeded. Please wait a moment.");
       }
 
+      const totalNeeded = input.exactCount + input.extraCount;
       const maxCached = 2;
-      const cachedRecipes = input.excludeTitles.length === 0
-        ? await getCachedRecipesByIngredients(input.ingredients, maxCached)
-        : [];
 
-      const cachedCount = Math.min(cachedRecipes.length, maxCached);
-      const usedCached = cachedRecipes.slice(0, cachedCount).map((r: any) => ({ ...r, source: "cached" }));
+      let cachedRecipes: any[] = [];
+      if (input.excludeTitles.length === 0) {
+        cachedRecipes = await getCachedRecipesByIngredients(input.ingredients, maxCached);
+      }
 
-      console.log('[tRPC GENERATE] Cache results:', cachedCount, 'of', maxCached, 'requested');
+      const cachedCount = cachedRecipes.length;
+      const usedCached = cachedRecipes.map((r: any) => ({ ...r, source: "cached" }));
 
-      const aiNeeded = 4 - cachedCount;
-      const aiExactNeeded = Math.max(1, input.exactCount - Math.min(cachedCount, 1));
-      const aiExtraNeeded = aiNeeded - aiExactNeeded;
+      const aiTotal = totalNeeded - cachedCount;
+
+      let aiExactNeeded: number;
+      let aiExtraNeeded: number;
+
+      if (cachedCount >= 2) {
+        aiExactNeeded = Math.max(1, input.exactCount - 1);
+        aiExtraNeeded = aiTotal - aiExactNeeded;
+      } else if (cachedCount === 1) {
+        aiExactNeeded = Math.max(1, input.exactCount - 1);
+        aiExtraNeeded = aiTotal - aiExactNeeded;
+      } else {
+        aiExactNeeded = input.exactCount;
+        aiExtraNeeded = input.extraCount;
+      }
+
+      if (aiExactNeeded < 0) aiExactNeeded = 0;
+      if (aiExtraNeeded < 0) aiExtraNeeded = 0;
 
       const allExcludeTitles = [
         ...input.excludeTitles,
@@ -69,7 +85,7 @@ export const recipeRouter = createTRPCRouter({
       const systemPrompt = buildSystemPrompt(input.language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
       const userPrompt = buildUserPrompt(
         input.ingredients, input.cuisines, input.servings, input.language,
-        aiNeeded, allExcludeTitles
+        aiTotal, allExcludeTitles
       );
 
       const response = await openai.chat.completions.create({
@@ -99,8 +115,12 @@ export const recipeRouter = createTRPCRouter({
       try {
         const parsed = JSON.parse(cleaned);
 
-        const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded).map((r: any) => ({ ...r, source: "generated" }));
-        const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded).map((r: any) => ({ ...r, source: "generated" }));
+        const freshExact = (parsed.exact_match_recipes || [])
+          .slice(0, aiExactNeeded)
+          .map((r: any) => ({ ...r, source: "generated" }));
+        const freshExtra = (parsed.extra_ingredient_recipes || [])
+          .slice(0, aiExtraNeeded)
+          .map((r: any) => ({ ...r, source: "generated" }));
         const allFresh = [...freshExact, ...freshExtra];
 
         let finalExact: any[] = [];
@@ -108,7 +128,7 @@ export const recipeRouter = createTRPCRouter({
 
         if (cachedCount >= 2) {
           finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, input.exactCount);
-          finalExtra = [usedCached[1], freshExtra[0] || freshExact[1]].filter(Boolean).slice(0, input.extraCount);
+          finalExtra = [usedCached[1], ...(freshExtra.length > 0 ? freshExtra : freshExact.slice(1))].filter(Boolean).slice(0, input.extraCount);
         } else if (cachedCount === 1) {
           finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, input.exactCount);
           finalExtra = freshExtra.slice(0, input.extraCount);
@@ -120,7 +140,7 @@ export const recipeRouter = createTRPCRouter({
           finalExtra = freshExtra.slice(0, input.extraCount);
         }
 
-        const recipesToCache = 2 - cachedCount;
+        const recipesToCache = Math.min(2 - cachedCount, 2);
         if (recipesToCache > 0 && allFresh.length > 0) {
           const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
           const toSave = shuffled.slice(0, recipesToCache);
@@ -168,8 +188,7 @@ export const recipeRouter = createTRPCRouter({
         throw new Error("Rate limit exceeded. Please wait a moment.");
       }
 
-      const targetLang =
-        input.targetLanguage === "tr" ? "Turkish" : "English";
+      const targetLang = input.targetLanguage === "tr" ? "Turkish" : "English";
 
       const systemPrompt = `You are a translator. Translate the given recipe JSON array into ${targetLang}.
 Translate ALL text fields: title, description, cuisine, difficulty, ingredient names, ingredient units, steps, required_extra_ingredients.
@@ -194,10 +213,7 @@ Respond with ONLY the translated JSON array. No markdown, no extra text.`;
         throw new Error("No response from AI");
       }
 
-      const cleaned = content
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
+      const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
 
       try {
         return JSON.parse(cleaned);

@@ -1,19 +1,58 @@
 import Foundation
 
 nonisolated struct SupabaseReaction: Codable, Sendable {
-    let id: String?
+    let id: Int?
     let device_id: String
     let recipe_id: String
-    let recipe_data: String
+    let recipe_data: RecipeData
     let reaction: String
     let created_at: String?
+    let updated_at: String?
 }
 
-nonisolated struct SupabaseReactionInsert: Codable, Sendable {
+nonisolated struct SupabaseTriedRecipe: Codable, Sendable {
+    let id: Int?
     let device_id: String
     let recipe_id: String
-    let recipe_data: String
-    let reaction: String
+    let recipe_data: RecipeData
+    let created_at: String?
+    let updated_at: String?
+}
+
+nonisolated enum RecipeData: Codable, Sendable {
+    case string(String)
+    case object(Recipe)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let str = try? container.decode(String.self) {
+            self = .string(str)
+        } else if let recipe = try? container.decode(Recipe.self) {
+            self = .object(recipe)
+        } else {
+            self = .string("{}")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let str):
+            try container.encode(str)
+        case .object(let recipe):
+            try container.encode(recipe)
+        }
+    }
+
+    func toRecipe() -> Recipe? {
+        switch self {
+        case .string(let str):
+            guard let data = str.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(Recipe.self, from: data)
+        case .object(let recipe):
+            return recipe
+        }
+    }
 }
 
 nonisolated struct RecipeCounts: Sendable {
@@ -24,20 +63,6 @@ nonisolated struct RecipeCounts: Sendable {
 nonisolated struct ReactionRow: Codable, Sendable {
     let recipe_id: String
     let reaction: String
-}
-
-nonisolated struct SupabaseTriedRecipe: Codable, Sendable {
-    let id: String?
-    let device_id: String
-    let recipe_id: String
-    let recipe_data: String
-    let created_at: String?
-}
-
-nonisolated struct SupabaseTriedRecipeInsert: Codable, Sendable {
-    let device_id: String
-    let recipe_id: String
-    let recipe_data: String
 }
 
 class SupabaseService {
@@ -68,14 +93,20 @@ class SupabaseService {
         request.setValue(apiKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if method == "POST" {
-            request.setValue("return=representation", forHTTPHeaderField: "Prefer")
-        }
-        if method == "PATCH" {
+        if method == "POST" || method == "PATCH" {
             request.setValue("return=representation", forHTTPHeaderField: "Prefer")
         }
         request.httpBody = body
         return request
+    }
+
+    private func encodeRecipeForDB(_ recipe: Recipe) -> Any {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(recipe),
+              let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return [String: Any]()
+        }
+        return obj
     }
 
     func fetchMyReactions() async throws -> [SupabaseReaction] {
@@ -90,24 +121,25 @@ class SupabaseService {
 
     func upsertReaction(recipeId: String, recipe: Recipe, reaction: String) async throws {
         guard isConfigured else { return }
-        let recipeJSON = (try? JSONEncoder().encode(recipe)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+        let recipeObj = encodeRecipeForDB(recipe)
 
         let existing = try await fetchReaction(recipeId: recipeId)
 
-        if let existing = existing {
-            let query = "id=eq.\(existing.id ?? "")"
-            let body: [String: String] = ["reaction": reaction, "recipe_data": recipeJSON]
-            guard let bodyData = try? JSONEncoder().encode(body),
+        if let existing = existing, let existingId = existing.id {
+            let query = "id=eq.\(existingId)"
+            let body: [String: Any] = ["reaction": reaction, "recipe_data": recipeObj]
+            guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
                   let request = makeRequest(path: "recipe_reactions", method: "PATCH", body: bodyData, queryParams: query) else { return }
             _ = try await URLSession.shared.data(for: request)
         } else {
-            let insert = SupabaseReactionInsert(
-                device_id: deviceId,
-                recipe_id: recipeId,
-                recipe_data: recipeJSON,
-                reaction: reaction
-            )
-            guard let bodyData = try? JSONEncoder().encode(insert),
+            let body: [String: Any] = [
+                "device_id": deviceId,
+                "recipe_id": recipeId,
+                "recipe_data": recipeObj,
+                "reaction": reaction
+            ]
+            guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
                   let request = makeRequest(path: "recipe_reactions", method: "POST", body: bodyData) else { return }
             _ = try await URLSession.shared.data(for: request)
         }
@@ -169,53 +201,31 @@ class SupabaseService {
     }
 
     func upsertTriedRecipe(recipe: Recipe) async throws {
-        guard isConfigured else {
-            print("[SupabaseService] tried_recipes: not configured, baseURL=\(baseURL), apiKey length=\(apiKey.count)")
-            return
-        }
-        let recipeJSON: String
-        do {
-            let data = try JSONEncoder().encode(recipe)
-            recipeJSON = String(data: data, encoding: .utf8) ?? "{}"
-        } catch {
-            print("[SupabaseService] tried_recipes: encode error: \(error)")
-            return
-        }
+        guard isConfigured else { return }
+
+        let recipeObj = encodeRecipeForDB(recipe)
 
         let existing = try? await fetchTriedRecipe(recipeId: recipe.id)
         if existing != nil {
-            let body: [String: String] = ["recipe_data": recipeJSON]
-            guard let bodyData = try? JSONEncoder().encode(body) else { return }
+            let body: [String: Any] = ["recipe_data": recipeObj]
+            guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else { return }
             let query = "device_id=eq.\(deviceId)&recipe_id=eq.\(recipe.id)"
             guard let request = makeRequest(path: "tried_recipes", method: "PATCH", body: bodyData, queryParams: query) else { return }
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse {
-                print("[SupabaseService] tried_recipes PATCH: \(http.statusCode)")
-            }
+            _ = try await URLSession.shared.data(for: request)
             return
         }
 
-        let insert = SupabaseTriedRecipeInsert(
-            device_id: deviceId,
-            recipe_id: recipe.id,
-            recipe_data: recipeJSON
-        )
-        guard let bodyData = try? JSONEncoder().encode(insert) else {
-            print("[SupabaseService] tried_recipes: failed to encode insert")
-            return
-        }
-        guard let request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else {
-            print("[SupabaseService] tried_recipes: failed to create request")
-            return
-        }
+        let body: [String: Any] = [
+            "device_id": deviceId,
+            "recipe_id": recipe.id,
+            "recipe_data": recipeObj
+        ]
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else { return }
+        guard let request = makeRequest(path: "tried_recipes", method: "POST", body: bodyData) else { return }
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse {
-            if http.statusCode >= 400 {
-                let respBody = String(data: data, encoding: .utf8) ?? "unknown"
-                print("[SupabaseService] tried_recipes POST failed: \(http.statusCode) - \(respBody)")
-            } else {
-                print("[SupabaseService] tried_recipes POST success: \(http.statusCode) for recipe \(recipe.id)")
-            }
+        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            let respBody = String(data: data, encoding: .utf8) ?? "unknown"
+            print("[SupabaseService] tried_recipes POST failed: \(http.statusCode) - \(respBody)")
         }
     }
 

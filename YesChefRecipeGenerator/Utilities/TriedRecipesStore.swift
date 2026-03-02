@@ -21,9 +21,8 @@ class TriedRecipesStore {
         Task {
             do {
                 try await SupabaseService.shared.upsertTriedRecipe(recipe: recipeCopy)
-                print("[TriedRecipesStore] Successfully saved tried recipe: \(recipeCopy.id)")
             } catch {
-                print("[TriedRecipesStore] Failed to save tried recipe: \(error.localizedDescription)")
+                print("[TriedRecipesStore] Failed to save: \(error.localizedDescription)")
             }
         }
     }
@@ -42,8 +41,6 @@ class TriedRecipesStore {
         recipes.contains(where: { $0.id == id })
     }
 
-
-
     func syncFromSupabase() async {
         guard SupabaseService.shared.isConfigured else { return }
         do {
@@ -53,8 +50,7 @@ class TriedRecipesStore {
 
             for r in remote {
                 if !hiddenIds.contains(r.recipe_id),
-                   let recipeData = r.recipe_data.data(using: .utf8),
-                   let recipe = try? JSONDecoder().decode(Recipe.self, from: recipeData) {
+                   let recipe = r.recipe_data.toRecipe() {
                     synced.append(recipe)
                 }
             }
@@ -70,7 +66,7 @@ class TriedRecipesStore {
             recipes = synced
             saveLocal()
         } catch {
-            // keep local data on failure
+            // keep local
         }
     }
 

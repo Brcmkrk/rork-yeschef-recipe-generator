@@ -58,19 +58,37 @@ app.post("/generate-recipe", async (c) => {
       return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
     }
 
+    const totalNeeded = exactCount + extraCount;
     const maxCached = 2;
-    const cachedRecipes = excludeTitles.length === 0
-      ? await getCachedRecipesByIngredients(ingredients, maxCached)
-      : [];
 
-    const cachedCount = Math.min(cachedRecipes.length, maxCached);
-    const usedCached = cachedRecipes.slice(0, cachedCount).map((r: any) => ({ ...r, source: "cached" }));
+    let cachedRecipes: any[] = [];
+    if (excludeTitles.length === 0) {
+      cachedRecipes = await getCachedRecipesByIngredients(ingredients, maxCached);
+    }
 
-    console.log('[GENERATE] Cache results:', cachedCount, 'of', maxCached, 'requested');
+    const cachedCount = cachedRecipes.length;
+    const usedCached = cachedRecipes.map((r: any) => ({ ...r, source: "cached" }));
 
-    const aiNeeded = 4 - cachedCount;
-    const aiExactNeeded = Math.max(1, exactCount - Math.min(cachedCount, 1));
-    const aiExtraNeeded = aiNeeded - aiExactNeeded;
+    console.log('[GENERATE] Cache hit:', cachedCount, '/', maxCached);
+
+    const aiTotal = totalNeeded - cachedCount;
+
+    let aiExactNeeded: number;
+    let aiExtraNeeded: number;
+
+    if (cachedCount >= 2) {
+      aiExactNeeded = Math.max(1, exactCount - 1);
+      aiExtraNeeded = aiTotal - aiExactNeeded;
+    } else if (cachedCount === 1) {
+      aiExactNeeded = Math.max(1, exactCount - 1);
+      aiExtraNeeded = aiTotal - aiExactNeeded;
+    } else {
+      aiExactNeeded = exactCount;
+      aiExtraNeeded = extraCount;
+    }
+
+    if (aiExactNeeded < 0) aiExactNeeded = 0;
+    if (aiExtraNeeded < 0) aiExtraNeeded = 0;
 
     const allExcludeTitles = [
       ...excludeTitles,
@@ -78,7 +96,9 @@ app.post("/generate-recipe", async (c) => {
     ];
 
     const systemPrompt = buildSystemPrompt(language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
-    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiNeeded, allExcludeTitles);
+    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiTotal, allExcludeTitles);
+
+    console.log('[GENERATE] Requesting AI:', aiExactNeeded, 'exact +', aiExtraNeeded, 'extra');
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -94,7 +114,7 @@ app.post("/generate-recipe", async (c) => {
     if (!content) {
       if (usedCached.length > 0) {
         return c.json({
-          exact_match_recipes: usedCached.slice(0, exactCount).map((r: any) => ({ ...r, source: "cached" })),
+          exact_match_recipes: usedCached.slice(0, exactCount),
           extra_ingredient_recipes: [],
           _cache: { hit: true, cached_count: cachedCount, fresh_count: 0 },
         });
@@ -107,8 +127,12 @@ app.post("/generate-recipe", async (c) => {
     try {
       const parsed = JSON.parse(cleaned);
 
-      const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded).map((r: any) => ({ ...r, source: "generated" }));
-      const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded).map((r: any) => ({ ...r, source: "generated" }));
+      const freshExact = (parsed.exact_match_recipes || [])
+        .slice(0, aiExactNeeded)
+        .map((r: any) => ({ ...r, source: "generated" }));
+      const freshExtra = (parsed.extra_ingredient_recipes || [])
+        .slice(0, aiExtraNeeded)
+        .map((r: any) => ({ ...r, source: "generated" }));
       const allFresh = [...freshExact, ...freshExtra];
 
       console.log('[GENERATE] AI returned:', freshExact.length, 'exact +', freshExtra.length, 'extra');
@@ -118,7 +142,7 @@ app.post("/generate-recipe", async (c) => {
 
       if (cachedCount >= 2) {
         finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
-        finalExtra = [usedCached[1], freshExtra[0] || freshExact[1]].filter(Boolean).slice(0, extraCount);
+        finalExtra = [usedCached[1], ...(freshExtra.length > 0 ? freshExtra : freshExact.slice(1))].filter(Boolean).slice(0, extraCount);
       } else if (cachedCount === 1) {
         finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
         finalExtra = freshExtra.slice(0, extraCount);
@@ -130,17 +154,14 @@ app.post("/generate-recipe", async (c) => {
         finalExtra = freshExtra.slice(0, extraCount);
       }
 
-      const recipesToCache = 2 - cachedCount;
-      console.log('[GENERATE] Need to cache:', recipesToCache, 'recipes (cached:', cachedCount, ', fresh:', allFresh.length, ')');
+      const recipesToCache = Math.min(2 - cachedCount, 2);
       if (recipesToCache > 0 && allFresh.length > 0) {
         const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, recipesToCache);
-        console.log('[GENERATE] Saving to cache:', toSave.map((r: any) => r.title));
+        console.log('[GENERATE] Saving', toSave.length, 'recipes to cache:', toSave.map((r: any) => r.title));
         saveRecipesToCache(toSave, ingredients)
-          .then(() => console.log('[GENERATE] Cache save completed successfully'))
-          .catch(err => console.error('[GENERATE] Cache save FAILED:', err));
-      } else {
-        console.log('[GENERATE] Skipping cache save (recipesToCache:', recipesToCache, ', freshCount:', allFresh.length, ')');
+          .then(() => console.log('[GENERATE] Cache save done'))
+          .catch(err => console.error('[GENERATE] Cache save error:', err));
       }
 
       return c.json({
@@ -156,6 +177,7 @@ app.post("/generate-recipe", async (c) => {
       return c.json({ error: "Failed to parse AI response" }, 500);
     }
   } catch (err: any) {
+    console.error('[GENERATE] Error:', err);
     return c.json({ error: err.message || "Internal server error" }, 500);
   }
 });
