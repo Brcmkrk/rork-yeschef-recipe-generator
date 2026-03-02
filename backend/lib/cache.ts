@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import crypto from 'crypto';
 
 interface CachedRecipe {
   id: string;
@@ -15,199 +14,92 @@ interface CachedRecipe {
   steps: string[];
 }
 
-interface CacheRow {
+interface AiCacheRow {
   id: string;
-  cache_key: string;
+  recipe_id: string;
+  title: string;
+  cuisine: string | null;
+  difficulty: string | null;
+  servings: number | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  required_ingredients: string[];
+  optional_ingredients: string[];
   recipe_data: any;
-  recipe_type: string;
-  ingredients_key: string;
-  language: string;
-  hit_count: number;
   created_at: string;
-  expires_at: string;
 }
 
-const CACHE_TTL_DAYS = 7;
-
-export function generateCacheKey(
-  ingredients: string[],
-  cuisines: string[],
-  servings: number,
-  language: string
-): string {
-  const sortedIngredients = ingredients.map(i => i.toLowerCase().trim()).sort();
-  const sortedCuisines = cuisines.map(c => c.toLowerCase().trim()).sort();
-  const raw = `${sortedIngredients.join('|')}__${sortedCuisines.join('|')}__${servings}__${language}`;
-  return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 48);
+function normalizeIngredients(ingredients: string[]): string[] {
+  return ingredients.map(i => i.toLowerCase().trim()).filter(Boolean);
 }
 
-export function generateIngredientsKey(ingredients: string[]): string {
-  return ingredients.map(i => i.toLowerCase().trim()).sort().join('|');
-}
+export async function getCachedRecipesByIngredients(
+  userIngredients: string[],
+  limit: number = 2
+): Promise<CachedRecipe[]> {
+  const normalized = normalizeIngredients(userIngredients);
+  if (normalized.length === 0) return [];
 
-export async function getCachedRecipes(
-  cacheKey: string,
-  exactCount: number,
-  extraCount: number
-): Promise<{ exact: CachedRecipe[]; extra: CachedRecipe[] } | null> {
   try {
-    const { data, error } = await supabase
-      .from('ai_cache')
-      .select('*')
-      .eq('cache_key', cacheKey)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const pgArray = `{${normalized.join(',')}}`;
 
-    if (error || !data || data.length === 0) return null;
+    const { data: fullMatches, error: fullErr } = await supabase
+      .rpc('match_recipes_full', { input_ingredients: pgArray })
+      .limit(limit);
 
-    const row = data[0] as CacheRow;
-    const recipes = row.recipe_data;
+    if (!fullErr && fullMatches && fullMatches.length >= limit) {
+      return fullMatches.map(rowToRecipe);
+    }
 
-    if (!recipes?.exact_match_recipes || !recipes?.extra_ingredient_recipes) return null;
+    const collected: CachedRecipe[] = [];
+    const usedIds = new Set<string>();
 
-    const exactRecipes = recipes.exact_match_recipes as CachedRecipe[];
-    const extraRecipes = recipes.extra_ingredient_recipes as CachedRecipe[];
-
-    if (exactRecipes.length < exactCount || extraRecipes.length < extraCount) return null;
-
-    await supabase
-      .from('ai_cache')
-      .update({ hit_count: (row.hit_count || 0) + 1 })
-      .eq('id', row.id);
-
-    return {
-      exact: exactRecipes.slice(0, exactCount),
-      extra: extraRecipes.slice(0, extraCount),
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function getPartialCachedRecipes(
-  cacheKey: string,
-  ingredientsKey: string,
-  language: string,
-  neededExact: number,
-  neededExtra: number
-): Promise<{ exact: CachedRecipe[]; extra: CachedRecipe[] } | null> {
-  try {
-    const { data: exactMatch } = await supabase
-      .from('ai_cache')
-      .select('*')
-      .eq('cache_key', cacheKey)
-      .gt('expires_at', new Date().toISOString())
-      .limit(1);
-
-    if (exactMatch && exactMatch.length > 0) {
-      const row = exactMatch[0] as CacheRow;
-      const recipes = row.recipe_data;
-      if (recipes?.exact_match_recipes?.length >= neededExact &&
-          recipes?.extra_ingredient_recipes?.length >= neededExtra) {
-        await supabase
-          .from('ai_cache')
-          .update({ hit_count: (row.hit_count || 0) + 1 })
-          .eq('id', row.id);
-        return {
-          exact: recipes.exact_match_recipes.slice(0, neededExact),
-          extra: recipes.extra_ingredient_recipes.slice(0, neededExtra),
-        };
+    if (fullMatches) {
+      for (const row of fullMatches) {
+        collected.push(rowToRecipe(row));
+        usedIds.add(row.recipe_id);
       }
     }
 
-    const { data: similarMatches } = await supabase
-      .from('ai_cache')
-      .select('*')
-      .eq('ingredients_key', ingredientsKey)
-      .eq('language', language)
-      .gt('expires_at', new Date().toISOString())
-      .order('hit_count', { ascending: false })
-      .limit(3);
+    if (collected.length < limit) {
+      const remaining = limit - collected.length;
+      const { data: overlapMatches } = await supabase
+        .rpc('match_recipes_overlap', { input_ingredients: pgArray })
+        .limit(remaining + 5);
 
-    if (!similarMatches || similarMatches.length === 0) return null;
-
-    let collectedExact: CachedRecipe[] = [];
-    let collectedExtra: CachedRecipe[] = [];
-    const usedTitles = new Set<string>();
-
-    for (const row of similarMatches as CacheRow[]) {
-      const recipes = row.recipe_data;
-      if (!recipes) continue;
-
-      for (const r of (recipes.exact_match_recipes || [])) {
-        if (collectedExact.length >= neededExact) break;
-        if (!usedTitles.has(r.title)) {
-          usedTitles.add(r.title);
-          collectedExact.push(r);
-        }
-      }
-      for (const r of (recipes.extra_ingredient_recipes || [])) {
-        if (collectedExtra.length >= neededExtra) break;
-        if (!usedTitles.has(r.title)) {
-          usedTitles.add(r.title);
-          collectedExtra.push(r);
+      if (overlapMatches) {
+        for (const row of overlapMatches) {
+          if (collected.length >= limit) break;
+          if (!usedIds.has(row.recipe_id)) {
+            collected.push(rowToRecipe(row));
+            usedIds.add(row.recipe_id);
+          }
         }
       }
     }
 
-    if (collectedExact.length >= neededExact && collectedExtra.length >= neededExtra) {
-      return {
-        exact: collectedExact.slice(0, neededExact),
-        extra: collectedExtra.slice(0, neededExtra),
-      };
-    }
-
-    return null;
-  } catch {
-    return null;
+    return collected;
+  } catch (err) {
+    console.error('[CACHE] Error fetching cached recipes:', err);
+    return [];
   }
 }
 
-export async function storeCacheEntry(
-  cacheKey: string,
-  ingredientsKey: string,
-  language: string,
-  recipeData: any
-): Promise<void> {
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
-
-  const { error } = await supabase
-    .from('ai_cache')
-    .upsert({
-      cache_key: cacheKey,
-      recipe_data: recipeData,
-      recipe_type: 'full_response',
-      ingredients_key: ingredientsKey,
-      language,
-      hit_count: 0,
-      expires_at: expiresAt.toISOString(),
-    }, { onConflict: 'cache_key' });
-
-  if (error) {
-    console.error('[CACHE STORE] Supabase upsert failed:', error.message, error.details, error.hint);
-    
-    const { error: insertError } = await supabase
-      .from('ai_cache')
-      .insert({
-        cache_key: cacheKey,
-        recipe_data: recipeData,
-        recipe_type: 'full_response',
-        ingredients_key: ingredientsKey,
-        language,
-        hit_count: 0,
-        expires_at: expiresAt.toISOString(),
-      });
-
-    if (insertError) {
-      console.error('[CACHE STORE] Insert fallback also failed:', insertError.message, insertError.details);
-    } else {
-      console.log('[CACHE STORE] Insert fallback succeeded for key:', cacheKey.substring(0, 12));
-    }
-  } else {
-    console.log('[CACHE STORE] Upsert succeeded for key:', cacheKey.substring(0, 12));
-  }
+function rowToRecipe(row: any): CachedRecipe {
+  const data = row.recipe_data;
+  return {
+    id: data.id || row.recipe_id,
+    title: data.title || row.title,
+    calories: data.calories || '300-400',
+    cuisine: data.cuisine || row.cuisine || 'International',
+    difficulty: data.difficulty || row.difficulty || 'Medium',
+    description: data.description || '',
+    servings: data.servings || row.servings || 2,
+    ingredients: data.ingredients || [],
+    spices: data.spices || [],
+    required_extra_ingredients: data.required_extra_ingredients || [],
+    steps: data.steps || [],
+  };
 }
 
 export async function getPopularRecipes(
@@ -217,43 +109,13 @@ export async function getPopularRecipes(
   try {
     const { data } = await supabase
       .from('ai_cache')
-      .select('recipe_data')
-      .eq('language', language)
-      .gt('expires_at', new Date().toISOString())
-      .order('hit_count', { ascending: false })
-      .limit(5);
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
     if (!data || data.length === 0) return [];
-
-    const allRecipes: CachedRecipe[] = [];
-    const usedTitles = new Set<string>();
-
-    for (const row of data) {
-      const recipes = row.recipe_data;
-      if (!recipes) continue;
-      for (const r of [...(recipes.exact_match_recipes || []), ...(recipes.extra_ingredient_recipes || [])]) {
-        if (!usedTitles.has(r.title) && allRecipes.length < limit) {
-          usedTitles.add(r.title);
-          allRecipes.push(r);
-        }
-      }
-    }
-
-    return allRecipes;
+    return data.map(rowToRecipe);
   } catch {
     return [];
-  }
-}
-
-export async function cleanExpiredCache(): Promise<number> {
-  try {
-    const { data } = await supabase
-      .from('ai_cache')
-      .delete()
-      .lt('expires_at', new Date().toISOString())
-      .select('id');
-    return data?.length || 0;
-  } catch {
-    return 0;
   }
 }

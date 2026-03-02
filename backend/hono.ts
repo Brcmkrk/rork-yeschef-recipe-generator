@@ -3,12 +3,8 @@ import { cors } from "hono/cors";
 import OpenAI from "openai";
 import { buildSystemPrompt, buildUserPrompt } from "./lib/prompts";
 import {
-  generateCacheKey,
-  generateIngredientsKey,
-  getPartialCachedRecipes,
-  storeCacheEntry,
+  getCachedRecipesByIngredients,
   getPopularRecipes,
-  cleanExpiredCache,
 } from "./lib/cache";
 
 const openai = new OpenAI({
@@ -61,74 +57,34 @@ app.post("/generate-recipe", async (c) => {
       return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
     }
 
-    const cacheKey = generateCacheKey(ingredients, cuisines || [], servings || 2, language);
-    const ingredientsKey = generateIngredientsKey(ingredients);
+    const cachedRecipes = excludeTitles.length === 0
+      ? await getCachedRecipesByIngredients(ingredients, 2)
+      : [];
 
-    if (excludeTitles.length === 0) {
-      const cachedPartial = await getPartialCachedRecipes(
-        cacheKey,
-        ingredientsKey,
-        language,
-        exactCount,
-        extraCount
-      );
+    const cachedExact = cachedRecipes.slice(0, 1);
+    const cachedExtra = cachedRecipes.slice(1, 2);
 
-      if (cachedPartial) {
-        const cachedExact = cachedPartial.exact;
-        const cachedExtra = cachedPartial.extra;
+    const aiExactNeeded = exactCount - cachedExact.length;
+    const aiExtraNeeded = extraCount - cachedExtra.length;
+    const aiTotal = aiExactNeeded + aiExtraNeeded;
 
-        const cacheExactToUse = cachedExact.slice(0, 1);
-        const cacheExtraToUse = cachedExtra.slice(0, 1);
-        const cachedTitles = [...cacheExactToUse, ...cacheExtraToUse].map(r => r.title);
+    const cachedTitles = [...cachedExact, ...cachedExtra, ...excludeTitles.map((t: string) => t)];
+    const allExcludeTitles = [
+      ...excludeTitles,
+      ...cachedExact.map((r: any) => r.title),
+      ...cachedExtra.map((r: any) => r.title),
+    ];
 
-        const aiExactNeeded = exactCount - cacheExactToUse.length;
-        const aiExtraNeeded = extraCount - cacheExtraToUse.length;
-
-        const systemPrompt = buildSystemPrompt(language, aiExactNeeded, aiExtraNeeded, cachedTitles);
-        const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiExactNeeded + aiExtraNeeded, cachedTitles);
-
-        try {
-          const aiResult = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.95,
-            max_tokens: 4000,
-          });
-
-          const content = aiResult.choices[0]?.message?.content;
-          if (content) {
-            const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-            const freshParsed = JSON.parse(cleaned);
-
-            const freshExact = (freshParsed.exact_match_recipes || []).slice(0, aiExactNeeded);
-            const freshExtra = (freshParsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
-
-            const mixedExact = [...cacheExactToUse, ...freshExact].slice(0, exactCount);
-            const mixedExtra = [...cacheExtraToUse, ...freshExtra].slice(0, extraCount);
-
-            storeCacheEntry(cacheKey, ingredientsKey, language, {
-              exact_match_recipes: [...cachedExact, ...freshExact],
-              extra_ingredient_recipes: [...cachedExtra, ...freshExtra],
-            }).catch((err) => console.error("[CACHE STORE ERROR]", err));
-
-            return c.json({
-              exact_match_recipes: mixedExact,
-              extra_ingredient_recipes: mixedExtra,
-              _cache: { hit: true, cached_count: cacheExactToUse.length + cacheExtraToUse.length, fresh_count: freshExact.length + freshExtra.length },
-            });
-          }
-        } catch {
-          // AI failed, fall through to full generation
-        }
-      }
+    if (aiTotal <= 0) {
+      return c.json({
+        exact_match_recipes: cachedExact.slice(0, exactCount),
+        extra_ingredient_recipes: cachedExtra.slice(0, extraCount),
+        _cache: { hit: true, cached_count: cachedExact.length + cachedExtra.length, fresh_count: 0 },
+      });
     }
 
-    const totalCount = exactCount + extraCount;
-    const systemPrompt = buildSystemPrompt(language, exactCount, extraCount, excludeTitles);
-    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, totalCount, excludeTitles);
+    const systemPrompt = buildSystemPrompt(language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
+    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiTotal, allExcludeTitles);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -136,12 +92,19 @@ app.post("/generate-recipe", async (c) => {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.9,
-      max_tokens: 5000,
+      temperature: 0.95,
+      max_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
+      if (cachedRecipes.length > 0) {
+        return c.json({
+          exact_match_recipes: cachedExact,
+          extra_ingredient_recipes: cachedExtra,
+          _cache: { hit: true, cached_count: cachedRecipes.length, fresh_count: 0 },
+        });
+      }
       return c.json({ error: "No response from AI" }, 500);
     }
 
@@ -150,12 +113,21 @@ app.post("/generate-recipe", async (c) => {
     try {
       const parsed = JSON.parse(cleaned);
 
-      if (excludeTitles.length === 0) {
-        storeCacheEntry(cacheKey, ingredientsKey, language, parsed).catch((err) => console.error("[CACHE STORE ERROR]", err));
-      }
+      const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded);
+      const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
 
-      parsed._cache = { hit: false, cached_count: 0 };
-      return c.json(parsed);
+      const finalExact = [...cachedExact, ...freshExact].slice(0, exactCount);
+      const finalExtra = [...cachedExtra, ...freshExtra].slice(0, extraCount);
+
+      return c.json({
+        exact_match_recipes: finalExact,
+        extra_ingredient_recipes: finalExtra,
+        _cache: {
+          hit: cachedRecipes.length > 0,
+          cached_count: cachedExact.length + cachedExtra.length,
+          fresh_count: freshExact.length + freshExtra.length,
+        },
+      });
     } catch {
       return c.json({ error: "Failed to parse AI response" }, 500);
     }
@@ -170,15 +142,6 @@ app.get("/popular-recipes", async (c) => {
     const limit = parseInt(c.req.query("limit") || "10");
     const recipes = await getPopularRecipes(language, limit);
     return c.json({ recipes, count: recipes.length });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Internal server error" }, 500);
-  }
-});
-
-app.post("/cache/cleanup", async (c) => {
-  try {
-    const removed = await cleanExpiredCache();
-    return c.json({ removed, status: "ok" });
   } catch (err: any) {
     return c.json({ error: err.message || "Internal server error" }, 500);
   }
