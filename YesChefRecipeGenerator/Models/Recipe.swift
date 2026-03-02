@@ -53,7 +53,13 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+nonisolated struct CacheInfo: Codable, Sendable {
+    let hit: Bool?
+    let cached_count: Int?
+}
+
 nonisolated struct RecipeResponse: Codable, Sendable {
     let exact_match_recipes: [Recipe]
     let extra_ingredient_recipes: [Recipe]
+    let _cache: CacheInfo?
 }

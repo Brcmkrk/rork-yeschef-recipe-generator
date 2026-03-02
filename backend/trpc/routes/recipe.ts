@@ -1,6 +1,14 @@
 import { z } from "zod";
 import OpenAI from "openai";
 import { createTRPCRouter, publicProcedure } from "../create-context";
+import {
+  generateCacheKey,
+  generateIngredientsKey,
+  getPartialCachedRecipes,
+  storeCacheEntry,
+  getPopularRecipes,
+  cleanExpiredCache,
+} from "../../lib/cache";
 
 const openai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -192,6 +200,76 @@ export const recipeRouter = createTRPCRouter({
         throw new Error("Rate limit exceeded. Please wait a moment.");
       }
 
+      const cacheKey = generateCacheKey(input.ingredients, input.cuisines, input.servings, input.language);
+      const ingredientsKey = generateIngredientsKey(input.ingredients);
+
+      if (input.excludeTitles.length === 0) {
+        const cachedPartial = await getPartialCachedRecipes(
+          cacheKey,
+          ingredientsKey,
+          input.language,
+          input.exactCount,
+          input.extraCount
+        );
+
+        if (cachedPartial) {
+          const cachedExact = cachedPartial.exact;
+          const cachedExtra = cachedPartial.extra;
+          const cachedTitles = [...cachedExact, ...cachedExtra].map((r: any) => r.title);
+
+          const systemPrompt = buildSystemPrompt(input.language, input.exactCount, input.extraCount, cachedTitles);
+          const userPrompt = buildUserPrompt(
+            input.ingredients, input.cuisines, input.servings, input.language,
+            input.exactCount + input.extraCount, cachedTitles
+          );
+
+          const aiResult = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.9,
+            max_tokens: 5000,
+          });
+
+          const content = aiResult.choices[0]?.message?.content;
+          if (content) {
+            const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
+            try {
+              const freshParsed = JSON.parse(cleaned);
+
+              const mixedExact = [
+                cachedExact[0],
+                ...(freshParsed.exact_match_recipes || []).slice(0, 1),
+                ...cachedExact.slice(1),
+                ...(freshParsed.exact_match_recipes || []).slice(1),
+              ].filter(Boolean).slice(0, input.exactCount);
+
+              const mixedExtra = [
+                cachedExtra[0],
+                ...(freshParsed.extra_ingredient_recipes || []).slice(0, 1),
+                ...cachedExtra.slice(1),
+                ...(freshParsed.extra_ingredient_recipes || []).slice(1),
+              ].filter(Boolean).slice(0, input.extraCount);
+
+              storeCacheEntry(cacheKey, ingredientsKey, input.language, {
+                exact_match_recipes: [...cachedExact, ...(freshParsed.exact_match_recipes || [])],
+                extra_ingredient_recipes: [...cachedExtra, ...(freshParsed.extra_ingredient_recipes || [])],
+              }).catch(() => {});
+
+              return {
+                exact_match_recipes: mixedExact,
+                extra_ingredient_recipes: mixedExtra,
+                _cache: { hit: true, cached_count: cachedExact.length + cachedExtra.length },
+              };
+            } catch {
+              // fall through
+            }
+          }
+        }
+      }
+
       const totalCount = input.exactCount + input.extraCount;
       const systemPrompt = buildSystemPrompt(
         input.language,
@@ -229,11 +307,35 @@ export const recipeRouter = createTRPCRouter({
         .trim();
 
       try {
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+
+        if (input.excludeTitles.length === 0) {
+          storeCacheEntry(cacheKey, ingredientsKey, input.language, parsed).catch(() => {});
+        }
+
+        parsed._cache = { hit: false, cached_count: 0 };
+        return parsed;
       } catch {
         throw new Error("Failed to parse AI response");
       }
     }),
+
+  popularRecipes: publicProcedure
+    .input(
+      z.object({
+        language: z.string().default("en"),
+        limit: z.number().default(10),
+      })
+    )
+    .query(async ({ input }) => {
+      const recipes = await getPopularRecipes(input.language, input.limit);
+      return { recipes, count: recipes.length };
+    }),
+
+  cleanupCache: publicProcedure.mutation(async () => {
+    const removed = await cleanExpiredCache();
+    return { removed, status: "ok" };
+  }),
 
   translate: publicProcedure
     .input(
