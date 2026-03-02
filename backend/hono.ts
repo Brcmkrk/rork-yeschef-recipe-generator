@@ -131,14 +131,16 @@ app.post("/generate-recipe", async (c) => {
       }
 
       const recipesToCache = 2 - cachedCount;
-      console.log('[GENERATE] Need to cache:', recipesToCache, 'recipes (cached:', cachedCount, ')');
+      console.log('[GENERATE] Need to cache:', recipesToCache, 'recipes (cached:', cachedCount, ', fresh:', allFresh.length, ')');
       if (recipesToCache > 0 && allFresh.length > 0) {
         const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, recipesToCache);
         console.log('[GENERATE] Saving to cache:', toSave.map((r: any) => r.title));
-        saveRecipesToCache(toSave, ingredients).catch(err =>
-          console.error('[CACHE] Background save failed:', err)
-        );
+        saveRecipesToCache(toSave, ingredients)
+          .then(() => console.log('[GENERATE] Cache save completed successfully'))
+          .catch(err => console.error('[GENERATE] Cache save FAILED:', err));
+      } else {
+        console.log('[GENERATE] Skipping cache save (recipesToCache:', recipesToCache, ', freshCount:', allFresh.length, ')');
       }
 
       return c.json({

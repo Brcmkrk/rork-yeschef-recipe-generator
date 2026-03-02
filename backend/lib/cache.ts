@@ -118,9 +118,13 @@ function rowToRecipe(row: any): CachedRecipe {
 
 export async function saveRecipesToCache(recipes: any[], userIngredients: string[]): Promise<void> {
   const normalized = normalizeIngredients(userIngredients);
-  if (recipes.length === 0) return;
+  if (recipes.length === 0) {
+    console.log('[CACHE-SAVE] No recipes to save, returning');
+    return;
+  }
 
-  console.log('[CACHE] Attempting to save', recipes.length, 'recipes to cache');
+  console.log('[CACHE-SAVE] === START SAVING', recipes.length, 'recipes ===');
+  console.log('[CACHE-SAVE] User ingredients:', normalized);
 
   for (const recipe of recipes) {
     try {
@@ -140,8 +144,15 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
 
       const allRequired = [...new Set([...normalized, ...ingredientNames])];
 
+      const { count: existingCount } = await supabase
+        .from('ai_cache')
+        .select('recipe_id', { count: 'exact', head: true });
+
+      const nextNum = (existingCount || 55) + 1;
+      const seqRecipeId = `recipe_${String(nextNum).padStart(3, '0')}`;
+
       const insertData = {
-        recipe_id: recipeId,
+        recipe_id: seqRecipeId,
         title,
         cuisine,
         difficulty,
@@ -151,7 +162,8 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         recipe_data: recipe,
       };
 
-      console.log('[CACHE] Inserting recipe:', title, '| required_ingredients:', allRequired.length, 'items');
+      console.log('[CACHE-SAVE] Inserting recipe:', title, '| recipe_id:', seqRecipeId, '| required_ingredients:', allRequired);
+      console.log('[CACHE-SAVE] Insert payload:', JSON.stringify(insertData).substring(0, 500));
 
       const { data, error } = await supabase
         .from('ai_cache')
@@ -159,9 +171,10 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         .select();
 
       if (error) {
-        console.error('[CACHE] INSERT FAILED for', title, ':', error.message, '| code:', error.code, '| details:', error.details);
+        console.error('[CACHE-SAVE] INSERT FAILED for', title);
+        console.error('[CACHE-SAVE] Error:', JSON.stringify({ message: error.message, code: error.code, details: error.details, hint: error.hint }));
       } else {
-        console.log('[CACHE] INSERT SUCCESS:', title, '| id:', data?.[0]?.id || 'unknown');
+        console.log('[CACHE-SAVE] INSERT SUCCESS:', title, '| db id:', data?.[0]?.id, '| recipe_id:', seqRecipeId);
       }
     } catch (err) {
       console.error('[CACHE] Exception saving recipe:', err);
