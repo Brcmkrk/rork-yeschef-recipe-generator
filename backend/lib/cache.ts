@@ -128,7 +128,6 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
 
   for (const recipe of recipes) {
     try {
-      const recipeId = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const title = recipe.title || 'Untitled';
       const cuisine = recipe.cuisine || null;
       const difficulty = recipe.difficulty || null;
@@ -144,26 +143,27 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
 
       const allRequired = [...new Set([...normalized, ...ingredientNames])];
 
-      const { count: existingCount } = await supabase
-        .from('ai_cache')
-        .select('recipe_id', { count: 'exact', head: true });
+      const slugTitle = title
+        .toLowerCase()
+        .replace(/[^a-z0-9ğüşıöçâîû\s]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50);
+      const uniqueRecipeId = `${slugTitle}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-      const nextNum = (existingCount || 55) + 1;
-      const seqRecipeId = `recipe_${String(nextNum).padStart(3, '0')}`;
+      const { source, ...recipeWithoutSource } = recipe;
 
       const insertData = {
-        recipe_id: seqRecipeId,
+        recipe_id: uniqueRecipeId,
         title,
         cuisine,
         difficulty,
         servings,
         required_ingredients: allRequired,
         optional_ingredients: extraIngredients.length > 0 ? extraIngredients : null,
-        recipe_data: recipe,
+        recipe_data: recipeWithoutSource,
       };
 
-      console.log('[CACHE-SAVE] Inserting recipe:', title, '| recipe_id:', seqRecipeId, '| required_ingredients:', allRequired);
-      console.log('[CACHE-SAVE] Insert payload:', JSON.stringify(insertData).substring(0, 500));
+      console.log('[CACHE-SAVE] Inserting recipe:', title, '| recipe_id:', uniqueRecipeId, '| required_ingredients:', allRequired);
 
       const { data, error } = await supabase
         .from('ai_cache')
@@ -174,7 +174,7 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         console.error('[CACHE-SAVE] INSERT FAILED for', title);
         console.error('[CACHE-SAVE] Error:', JSON.stringify({ message: error.message, code: error.code, details: error.details, hint: error.hint }));
       } else {
-        console.log('[CACHE-SAVE] INSERT SUCCESS:', title, '| db id:', data?.[0]?.id, '| recipe_id:', seqRecipeId);
+        console.log('[CACHE-SAVE] INSERT SUCCESS:', title, '| db id:', data?.[0]?.id, '| recipe_id:', uniqueRecipeId);
       }
     } catch (err) {
       console.error('[CACHE] Exception saving recipe:', err);
