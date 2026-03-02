@@ -142,24 +142,6 @@ class RecipeViewModel {
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
 
-            if excludeTitles.isEmpty {
-                let cacheKey = RecipeCacheService.cacheKey(
-                    ingredients: ingredientsList,
-                    cuisines: cuisineNames,
-                    servings: servings,
-                    language: language,
-                    exactCount: exactMatchCount,
-                    extraCount: extraIngredientCount
-                )
-                if let cached = RecipeCacheService.shared.cachedResponse(for: cacheKey) {
-                    exactMatchRecipes = cached.exact_match_recipes.map { var r = $0; r.language = language; return r }
-                    extraIngredientRecipes = cached.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
-                    hasResults = true
-                    isLoading = false
-                    return
-                }
-            }
-
             let response = try await OpenAIService.shared.generateRecipes(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
@@ -169,18 +151,6 @@ class RecipeViewModel {
                 extraCount: extraIngredientCount,
                 excludeTitles: excludeTitles
             )
-
-            if excludeTitles.isEmpty {
-                let cacheKey = RecipeCacheService.cacheKey(
-                    ingredients: ingredientsList,
-                    cuisines: cuisineNames,
-                    servings: servings,
-                    language: language,
-                    exactCount: exactMatchCount,
-                    extraCount: extraIngredientCount
-                )
-                RecipeCacheService.shared.store(response: response, for: cacheKey)
-            }
 
             exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
