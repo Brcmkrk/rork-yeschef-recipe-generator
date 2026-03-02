@@ -55,6 +55,8 @@ export const recipeRouter = createTRPCRouter({
       const cachedCount = Math.min(cachedRecipes.length, maxCached);
       const usedCached = cachedRecipes.slice(0, cachedCount).map((r: any) => ({ ...r, source: "cached" }));
 
+      console.log('[tRPC GENERATE] Cache results:', cachedCount, 'of', maxCached, 'requested');
+
       const aiNeeded = 4 - cachedCount;
       const aiExactNeeded = Math.max(1, input.exactCount - Math.min(cachedCount, 1));
       const aiExtraNeeded = aiNeeded - aiExactNeeded;

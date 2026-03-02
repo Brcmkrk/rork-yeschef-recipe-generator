@@ -13,6 +13,23 @@ struct ResultsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 32) {
+                    let totalRecipes = viewModel.exactMatchRecipes.count + viewModel.extraIngredientRecipes.count
+                    if totalRecipes > 0 {
+                        HStack(spacing: 8) {
+                            Image(systemName: "archivebox.fill")
+                                .font(.caption)
+                                .foregroundStyle(.cyan)
+                            Text(lang.t(
+                                "\(viewModel.cachedCount)/\(totalRecipes) from cache",
+                                "\(viewModel.cachedCount)/\(totalRecipes) önbellekten"
+                            ))
+                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                    }
+
                     if !viewModel.exactMatchRecipes.isEmpty {
                         recipeSection(
                             title: lang.t("Exact Match", "Birebir Eşleşme"),

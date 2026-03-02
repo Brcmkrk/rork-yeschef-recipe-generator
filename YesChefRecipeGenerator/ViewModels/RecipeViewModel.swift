@@ -12,6 +12,7 @@ class RecipeViewModel {
     var isLoading: Bool = false
     var errorMessage: String?
     var hasResults: Bool = false
+    var cachedCount: Int = 0
     private var generationTask: Task<Void, Never>?
     private var previousRecipeTitles: [String] = []
 
@@ -154,6 +155,7 @@ class RecipeViewModel {
 
             exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
+            cachedCount = response._cache?.cached_count ?? 0
             hasResults = true
         } catch is CancellationError {
             // cancelled

@@ -14,21 +14,6 @@ interface CachedRecipe {
   steps: string[];
 }
 
-interface AiCacheRow {
-  id: string;
-  recipe_id: string;
-  title: string;
-  cuisine: string | null;
-  difficulty: string | null;
-  servings: number | null;
-  prep_minutes: number | null;
-  cook_minutes: number | null;
-  required_ingredients: string;
-  optional_ingredients: string | null;
-  recipe_data: any;
-  created_at: string;
-}
-
 function normalizeIngredients(ingredients: string[]): string[] {
   return ingredients.map(i => i.toLowerCase().trim()).filter(Boolean);
 }
@@ -41,14 +26,22 @@ export async function getCachedRecipesByIngredients(
   if (normalized.length === 0) return [];
 
   try {
-    const csvInput = normalized.join(',');
+    console.log('[CACHE] Searching for ingredients:', normalized);
 
     const { data: fullMatches, error: fullErr } = await supabase
-      .rpc('match_recipes_full', { input_ingredients: csvInput })
+      .from('ai_cache')
+      .select('*')
+      .containedBy('required_ingredients', normalized)
       .limit(limit);
 
+    if (fullErr) {
+      console.error('[CACHE] Full match query error:', fullErr.message);
+    } else {
+      console.log('[CACHE] Full matches found:', fullMatches?.length || 0);
+    }
+
     if (!fullErr && fullMatches && fullMatches.length >= limit) {
-      return fullMatches.map(rowToRecipe);
+      return fullMatches.slice(0, limit).map(rowToRecipe);
     }
 
     const collected: CachedRecipe[] = [];
@@ -63,21 +56,42 @@ export async function getCachedRecipesByIngredients(
 
     if (collected.length < limit) {
       const remaining = limit - collected.length;
-      const { data: overlapMatches } = await supabase
-        .rpc('match_recipes_overlap', { input_ingredients: csvInput })
-        .limit(remaining + 5);
+
+      const { data: overlapMatches, error: overlapErr } = await supabase
+        .from('ai_cache')
+        .select('*')
+        .overlaps('required_ingredients', normalized)
+        .limit(remaining + 10);
+
+      if (overlapErr) {
+        console.error('[CACHE] Overlap query error:', overlapErr.message);
+      } else {
+        console.log('[CACHE] Overlap matches found:', overlapMatches?.length || 0);
+      }
 
       if (overlapMatches) {
-        for (const row of overlapMatches) {
+        const scored = overlapMatches
+          .filter(row => !usedIds.has(row.recipe_id))
+          .map(row => {
+            const reqIngredients: string[] = Array.isArray(row.required_ingredients)
+              ? row.required_ingredients
+              : (typeof row.required_ingredients === 'string'
+                ? row.required_ingredients.replace(/[{}]/g, '').split(',').map((s: string) => s.trim())
+                : []);
+            const overlap = reqIngredients.filter((i: string) => normalized.includes(i.toLowerCase())).length;
+            return { row, overlap };
+          })
+          .sort((a, b) => b.overlap - a.overlap);
+
+        for (const { row } of scored) {
           if (collected.length >= limit) break;
-          if (!usedIds.has(row.recipe_id)) {
-            collected.push(rowToRecipe(row));
-            usedIds.add(row.recipe_id);
-          }
+          collected.push(rowToRecipe(row));
+          usedIds.add(row.recipe_id);
         }
       }
     }
 
+    console.log('[CACHE] Total cached recipes returned:', collected.length);
     return collected;
   } catch (err) {
     console.error('[CACHE] Error fetching cached recipes:', err);
@@ -86,7 +100,7 @@ export async function getCachedRecipesByIngredients(
 }
 
 function rowToRecipe(row: any): CachedRecipe {
-  const data = row.recipe_data;
+  const data = row.recipe_data || {};
   return {
     id: data.id || row.recipe_id,
     title: data.title || row.title,
@@ -106,8 +120,10 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
   const normalized = normalizeIngredients(userIngredients);
   if (recipes.length === 0) return;
 
-  try {
-    for (const recipe of recipes) {
+  console.log('[CACHE] Attempting to save', recipes.length, 'recipes to cache');
+
+  for (const recipe of recipes) {
+    try {
       const recipeId = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const title = recipe.title || 'Untitled';
       const cuisine = recipe.cuisine || null;
@@ -124,7 +140,7 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
 
       const allRequired = [...new Set([...normalized, ...ingredientNames])];
 
-      const { error } = await supabase.from('ai_cache').insert({
+      const insertData = {
         recipe_id: recipeId,
         title,
         cuisine,
@@ -133,16 +149,23 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         required_ingredients: allRequired,
         optional_ingredients: extraIngredients.length > 0 ? extraIngredients : null,
         recipe_data: recipe,
-      });
+      };
+
+      console.log('[CACHE] Inserting recipe:', title, '| required_ingredients:', allRequired.length, 'items');
+
+      const { data, error } = await supabase
+        .from('ai_cache')
+        .insert(insertData)
+        .select();
 
       if (error) {
-        console.error('[CACHE] Failed to save recipe to cache:', error.message);
+        console.error('[CACHE] INSERT FAILED for', title, ':', error.message, '| code:', error.code, '| details:', error.details);
       } else {
-        console.log(`[CACHE] Saved recipe to cache: ${title}`);
+        console.log('[CACHE] INSERT SUCCESS:', title, '| id:', data?.[0]?.id || 'unknown');
       }
+    } catch (err) {
+      console.error('[CACHE] Exception saving recipe:', err);
     }
-  } catch (err) {
-    console.error('[CACHE] Error saving recipes to cache:', err);
   }
 }
 

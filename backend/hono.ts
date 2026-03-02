@@ -64,7 +64,9 @@ app.post("/generate-recipe", async (c) => {
       : [];
 
     const cachedCount = Math.min(cachedRecipes.length, maxCached);
-    const usedCached = cachedRecipes.slice(0, cachedCount);
+    const usedCached = cachedRecipes.slice(0, cachedCount).map((r: any) => ({ ...r, source: "cached" }));
+
+    console.log('[GENERATE] Cache results:', cachedCount, 'of', maxCached, 'requested');
 
     const aiNeeded = 4 - cachedCount;
     const aiExactNeeded = Math.max(1, exactCount - Math.min(cachedCount, 1));
@@ -92,7 +94,7 @@ app.post("/generate-recipe", async (c) => {
     if (!content) {
       if (usedCached.length > 0) {
         return c.json({
-          exact_match_recipes: usedCached.slice(0, exactCount),
+          exact_match_recipes: usedCached.slice(0, exactCount).map((r: any) => ({ ...r, source: "cached" })),
           extra_ingredient_recipes: [],
           _cache: { hit: true, cached_count: cachedCount, fresh_count: 0 },
         });
@@ -105,9 +107,11 @@ app.post("/generate-recipe", async (c) => {
     try {
       const parsed = JSON.parse(cleaned);
 
-      const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded);
-      const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
+      const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded).map((r: any) => ({ ...r, source: "generated" }));
+      const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded).map((r: any) => ({ ...r, source: "generated" }));
       const allFresh = [...freshExact, ...freshExtra];
+
+      console.log('[GENERATE] AI returned:', freshExact.length, 'exact +', freshExtra.length, 'extra');
 
       let finalExact: any[] = [];
       let finalExtra: any[] = [];
@@ -127,9 +131,11 @@ app.post("/generate-recipe", async (c) => {
       }
 
       const recipesToCache = 2 - cachedCount;
+      console.log('[GENERATE] Need to cache:', recipesToCache, 'recipes (cached:', cachedCount, ')');
       if (recipesToCache > 0 && allFresh.length > 0) {
         const shuffled = [...allFresh].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, recipesToCache);
+        console.log('[GENERATE] Saving to cache:', toSave.map((r: any) => r.title));
         saveRecipesToCache(toSave, ingredients).catch(err =>
           console.error('[CACHE] Background save failed:', err)
         );
