@@ -170,13 +170,27 @@ export async function storeCacheEntry(
   language: string,
   recipeData: any
 ): Promise<void> {
-  try {
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
 
-    await supabase
+  const { error } = await supabase
+    .from('ai_cache')
+    .upsert({
+      cache_key: cacheKey,
+      recipe_data: recipeData,
+      recipe_type: 'full_response',
+      ingredients_key: ingredientsKey,
+      language,
+      hit_count: 0,
+      expires_at: expiresAt.toISOString(),
+    }, { onConflict: 'cache_key' });
+
+  if (error) {
+    console.error('[CACHE STORE] Supabase upsert failed:', error.message, error.details, error.hint);
+    
+    const { error: insertError } = await supabase
       .from('ai_cache')
-      .upsert({
+      .insert({
         cache_key: cacheKey,
         recipe_data: recipeData,
         recipe_type: 'full_response',
@@ -184,9 +198,15 @@ export async function storeCacheEntry(
         language,
         hit_count: 0,
         expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'cache_key' });
-  } catch {
-    // silent fail
+      });
+
+    if (insertError) {
+      console.error('[CACHE STORE] Insert fallback also failed:', insertError.message, insertError.details);
+    } else {
+      console.log('[CACHE STORE] Insert fallback succeeded for key:', cacheKey.substring(0, 12));
+    }
+  } else {
+    console.log('[CACHE STORE] Upsert succeeded for key:', cacheKey.substring(0, 12));
   }
 }
 

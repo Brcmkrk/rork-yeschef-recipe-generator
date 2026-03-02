@@ -76,68 +76,52 @@ app.post("/generate-recipe", async (c) => {
       if (cachedPartial) {
         const cachedExact = cachedPartial.exact;
         const cachedExtra = cachedPartial.extra;
-        const cachedTitles = [...cachedExact, ...cachedExtra].map(r => r.title);
 
-        const aiExactCount = exactCount;
-        const aiExtraCount = extraCount;
-        const totalAiCount = aiExactCount + aiExtraCount;
+        const cacheExactToUse = cachedExact.slice(0, 1);
+        const cacheExtraToUse = cachedExtra.slice(0, 1);
+        const cachedTitles = [...cacheExactToUse, ...cacheExtraToUse].map(r => r.title);
 
-        const systemPrompt = buildSystemPrompt(language, aiExactCount, aiExtraCount, cachedTitles);
-        const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, totalAiCount, cachedTitles);
+        const aiExactNeeded = exactCount - cacheExactToUse.length;
+        const aiExtraNeeded = extraCount - cacheExtraToUse.length;
 
-        const [aiResult] = await Promise.all([
-          openai.chat.completions.create({
+        const systemPrompt = buildSystemPrompt(language, aiExactNeeded, aiExtraNeeded, cachedTitles);
+        const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, aiExactNeeded + aiExtraNeeded, cachedTitles);
+
+        try {
+          const aiResult = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
             ],
-            temperature: 0.9,
-            max_tokens: 5000,
-          }),
-        ]);
+            temperature: 0.95,
+            max_tokens: 4000,
+          });
 
-        const content = aiResult.choices[0]?.message?.content;
-        if (content) {
-          const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-          try {
+          const content = aiResult.choices[0]?.message?.content;
+          if (content) {
+            const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
             const freshParsed = JSON.parse(cleaned);
 
-            const mixedExact = [
-              cachedExact[0],
-              ...(freshParsed.exact_match_recipes || []).slice(0, 1),
-              ...cachedExact.slice(1),
-              ...(freshParsed.exact_match_recipes || []).slice(1),
-            ].filter(Boolean).slice(0, exactCount);
+            const freshExact = (freshParsed.exact_match_recipes || []).slice(0, aiExactNeeded);
+            const freshExtra = (freshParsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
 
-            const mixedExtra = [
-              cachedExtra[0],
-              ...(freshParsed.extra_ingredient_recipes || []).slice(0, 1),
-              ...cachedExtra.slice(1),
-              ...(freshParsed.extra_ingredient_recipes || []).slice(1),
-            ].filter(Boolean).slice(0, extraCount);
-
-            const fullResponse = {
-              exact_match_recipes: mixedExact,
-              extra_ingredient_recipes: mixedExtra,
-              _cache: { hit: true, cached_count: cachedExact.length + cachedExtra.length },
-            };
+            const mixedExact = [...cacheExactToUse, ...freshExact].slice(0, exactCount);
+            const mixedExtra = [...cacheExtraToUse, ...freshExtra].slice(0, extraCount);
 
             storeCacheEntry(cacheKey, ingredientsKey, language, {
-              exact_match_recipes: [
-                ...cachedExact,
-                ...(freshParsed.exact_match_recipes || []),
-              ],
-              extra_ingredient_recipes: [
-                ...cachedExtra,
-                ...(freshParsed.extra_ingredient_recipes || []),
-              ],
-            }).catch(() => {});
+              exact_match_recipes: [...cachedExact, ...freshExact],
+              extra_ingredient_recipes: [...cachedExtra, ...freshExtra],
+            }).catch((err) => console.error("[CACHE STORE ERROR]", err));
 
-            return c.json(fullResponse);
-          } catch {
-            // fall through to full generation
+            return c.json({
+              exact_match_recipes: mixedExact,
+              extra_ingredient_recipes: mixedExtra,
+              _cache: { hit: true, cached_count: cacheExactToUse.length + cacheExtraToUse.length, fresh_count: freshExact.length + freshExtra.length },
+            });
           }
+        } catch {
+          // AI failed, fall through to full generation
         }
       }
     }
@@ -167,7 +151,7 @@ app.post("/generate-recipe", async (c) => {
       const parsed = JSON.parse(cleaned);
 
       if (excludeTitles.length === 0) {
-        storeCacheEntry(cacheKey, ingredientsKey, language, parsed).catch(() => {});
+        storeCacheEntry(cacheKey, ingredientsKey, language, parsed).catch((err) => console.error("[CACHE STORE ERROR]", err));
       }
 
       parsed._cache = { hit: false, cached_count: 0 };
