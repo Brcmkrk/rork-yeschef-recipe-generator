@@ -215,57 +215,55 @@ export const recipeRouter = createTRPCRouter({
         if (cachedPartial) {
           const cachedExact = cachedPartial.exact;
           const cachedExtra = cachedPartial.extra;
-          const cachedTitles = [...cachedExact, ...cachedExtra].map((r: any) => r.title);
 
-          const systemPrompt = buildSystemPrompt(input.language, input.exactCount, input.extraCount, cachedTitles);
+          const cacheExactToUse = cachedExact.slice(0, 1);
+          const cacheExtraToUse = cachedExtra.slice(0, 1);
+          const cachedTitles = [...cacheExactToUse, ...cacheExtraToUse].map((r: any) => r.title);
+
+          const aiExactNeeded = input.exactCount - cacheExactToUse.length;
+          const aiExtraNeeded = input.extraCount - cacheExtraToUse.length;
+
+          const systemPrompt = buildSystemPrompt(input.language, aiExactNeeded, aiExtraNeeded, cachedTitles);
           const userPrompt = buildUserPrompt(
             input.ingredients, input.cuisines, input.servings, input.language,
-            input.exactCount + input.extraCount, cachedTitles
+            aiExactNeeded + aiExtraNeeded, cachedTitles
           );
 
-          const aiResult = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.9,
-            max_tokens: 5000,
-          });
+          try {
+            const aiResult = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.95,
+              max_tokens: 4000,
+            });
 
-          const content = aiResult.choices[0]?.message?.content;
-          if (content) {
-            const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-            try {
+            const content = aiResult.choices[0]?.message?.content;
+            if (content) {
+              const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
               const freshParsed = JSON.parse(cleaned);
 
-              const mixedExact = [
-                cachedExact[0],
-                ...(freshParsed.exact_match_recipes || []).slice(0, 1),
-                ...cachedExact.slice(1),
-                ...(freshParsed.exact_match_recipes || []).slice(1),
-              ].filter(Boolean).slice(0, input.exactCount);
+              const freshExact = (freshParsed.exact_match_recipes || []).slice(0, aiExactNeeded);
+              const freshExtra = (freshParsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
 
-              const mixedExtra = [
-                cachedExtra[0],
-                ...(freshParsed.extra_ingredient_recipes || []).slice(0, 1),
-                ...cachedExtra.slice(1),
-                ...(freshParsed.extra_ingredient_recipes || []).slice(1),
-              ].filter(Boolean).slice(0, input.extraCount);
+              const mixedExact = [...cacheExactToUse, ...freshExact].slice(0, input.exactCount);
+              const mixedExtra = [...cacheExtraToUse, ...freshExtra].slice(0, input.extraCount);
 
               storeCacheEntry(cacheKey, ingredientsKey, input.language, {
-                exact_match_recipes: [...cachedExact, ...(freshParsed.exact_match_recipes || [])],
-                extra_ingredient_recipes: [...cachedExtra, ...(freshParsed.extra_ingredient_recipes || [])],
+                exact_match_recipes: [...cachedExact, ...freshExact],
+                extra_ingredient_recipes: [...cachedExtra, ...freshExtra],
               }).catch(() => {});
 
               return {
                 exact_match_recipes: mixedExact,
                 extra_ingredient_recipes: mixedExtra,
-                _cache: { hit: true, cached_count: cachedExact.length + cachedExtra.length },
+                _cache: { hit: true, cached_count: cacheExactToUse.length + cacheExtraToUse.length, fresh_count: freshExact.length + freshExtra.length },
               };
-            } catch {
-              // fall through
             }
+          } catch {
+            // AI failed, fall through to full AI generation
           }
         }
       }
