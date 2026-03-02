@@ -87,7 +87,11 @@ struct HomeView: View {
                         showLoading = true
                         Task {
                             await viewModel.refreshRecipes()
-                            recipesReady = true
+                            if viewModel.hasResults && viewModel.errorMessage == nil {
+                                recipesReady = true
+                            } else {
+                                showLoading = false
+                            }
                         }
                     }
                 })
@@ -409,7 +413,11 @@ struct HomeView: View {
                 showLoading = true
                 Task {
                     await viewModel.generateRecipes()
-                    recipesReady = true
+                    if viewModel.hasResults && viewModel.errorMessage == nil {
+                        recipesReady = true
+                    } else {
+                        showLoading = false
+                    }
                 }
             } label: {
                 HStack(spacing: 10) {
@@ -452,7 +460,11 @@ struct HomeView: View {
                         showLoading = true
                         Task {
                             await viewModel.generateRecipes()
-                            recipesReady = true
+                            if viewModel.hasResults && viewModel.errorMessage == nil {
+                                recipesReady = true
+                            } else {
+                                showLoading = false
+                            }
                         }
                     }
                     .font(.system(.footnote, design: .rounded, weight: .semibold))

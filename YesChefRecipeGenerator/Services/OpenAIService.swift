@@ -68,15 +68,30 @@ class OpenAIService {
         excludeTitles: [String] = []
     ) async throws -> RecipeResponse {
         if isBackendConfigured {
-            return try await generateViaBackend(
-                ingredients: ingredients,
-                cuisines: cuisines,
-                servings: servings,
-                language: language,
-                exactCount: exactCount,
-                extraCount: extraCount,
-                excludeTitles: excludeTitles
-            )
+            do {
+                return try await generateViaBackend(
+                    ingredients: ingredients,
+                    cuisines: cuisines,
+                    servings: servings,
+                    language: language,
+                    exactCount: exactCount,
+                    extraCount: extraCount,
+                    excludeTitles: excludeTitles
+                )
+            } catch {
+                if !Config.EXPO_PUBLIC_OPENAI_API_KEY.isEmpty {
+                    return try await generateDirectly(
+                        ingredients: ingredients,
+                        cuisines: cuisines,
+                        servings: servings,
+                        language: language,
+                        exactCount: exactCount,
+                        extraCount: extraCount,
+                        excludeTitles: excludeTitles
+                    )
+                }
+                throw error
+            }
         }
         return try await generateDirectly(
             ingredients: ingredients,
@@ -133,7 +148,8 @@ class OpenAIService {
                 throw OpenAIError.apiError(errorResponse.error)
             }
             let body = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw OpenAIError.apiError("Backend returned status \(httpResponse.statusCode): \(body)")
+            let truncated = body.count > 200 ? String(body.prefix(200)) + "..." : body
+            throw OpenAIError.apiError("Backend error (\(httpResponse.statusCode)): \(truncated)")
         }
 
         do {
@@ -211,7 +227,22 @@ class OpenAIService {
 
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
         if isBackendConfigured {
-            return try await translateViaBackend(recipes, to: language)
+            do {
+                return try await translateViaBackend(recipes, to: language)
+            } catch {
+                if !Config.EXPO_PUBLIC_OPENAI_API_KEY.isEmpty {
+                    var allTranslated: [Recipe] = []
+                    let batchSize = 2
+                    for i in stride(from: 0, to: recipes.count, by: batchSize) {
+                        let end = min(i + batchSize, recipes.count)
+                        let batch = Array(recipes[i..<end])
+                        let translated = try await translateDirectly(batch, to: language)
+                        allTranslated.append(contentsOf: translated)
+                    }
+                    return allTranslated
+                }
+                throw error
+            }
         }
         var allTranslated: [Recipe] = []
         let batchSize = 2
@@ -255,7 +286,8 @@ class OpenAIService {
                 throw OpenAIError.apiError(errorResponse.error)
             }
             let body = String(data: data, encoding: .utf8) ?? "Unknown"
-            throw OpenAIError.apiError("Translation failed: \(body)")
+            let truncated = body.count > 200 ? String(body.prefix(200)) + "..." : body
+            throw OpenAIError.apiError("Translation error (\(httpResponse.statusCode)): \(truncated)")
         }
 
         do {
