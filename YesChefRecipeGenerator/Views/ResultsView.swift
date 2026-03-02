@@ -197,14 +197,29 @@ struct RecipeCardView: View {
 
                     Spacer()
 
-                    HStack(spacing: 3) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 9))
-                        Text("\(recipe.calories)")
-                            .font(.system(.caption2, design: .rounded, weight: .semibold))
+                    if let source = recipe.source {
+                        HStack(spacing: 3) {
+                            Image(systemName: source == "cached" ? "tray.full.fill" : "sparkle")
+                                .font(.system(size: 8))
+                            Text(source == "cached" ? "Cache" : "AI")
+                                .font(.system(.caption2, design: .rounded, weight: .bold))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(source == "cached" ? Color.cyan.opacity(0.12) : Color.purple.opacity(0.12))
+                        .foregroundStyle(source == "cached" ? .cyan : .purple)
+                        .clipShape(.rect(cornerRadius: 5))
                     }
-                    .foregroundStyle(.secondary)
                 }
+
+                HStack(spacing: 3) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 9))
+                    Text("\(recipe.calories)")
+                        .font(.system(.caption2, design: .rounded, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
                 Text(recipe.title)
                     .font(.system(.headline, design: .rounded))

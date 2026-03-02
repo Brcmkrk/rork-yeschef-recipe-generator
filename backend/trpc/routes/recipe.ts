@@ -53,7 +53,7 @@ export const recipeRouter = createTRPCRouter({
         : [];
 
       const cachedCount = Math.min(cachedRecipes.length, maxCached);
-      const usedCached = cachedRecipes.slice(0, cachedCount);
+      const usedCached = cachedRecipes.slice(0, cachedCount).map((r: any) => ({ ...r, source: "cached" }));
 
       const aiNeeded = 4 - cachedCount;
       const aiExactNeeded = Math.max(1, input.exactCount - Math.min(cachedCount, 1));
@@ -97,8 +97,8 @@ export const recipeRouter = createTRPCRouter({
       try {
         const parsed = JSON.parse(cleaned);
 
-        const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded);
-        const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded);
+        const freshExact = (parsed.exact_match_recipes || []).slice(0, aiExactNeeded).map((r: any) => ({ ...r, source: "generated" }));
+        const freshExtra = (parsed.extra_ingredient_recipes || []).slice(0, aiExtraNeeded).map((r: any) => ({ ...r, source: "generated" }));
         const allFresh = [...freshExact, ...freshExtra];
 
         let finalExact: any[] = [];

@@ -28,6 +28,7 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
     let required_extra_ingredients: [String]
     let steps: [String]
     var language: String?
+    var source: String?
 
     var allSpices: [RecipeSpice] {
         if let spices, !spices.isEmpty {

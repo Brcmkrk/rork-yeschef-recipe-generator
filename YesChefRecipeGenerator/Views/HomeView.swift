@@ -491,6 +491,7 @@ struct CuisineChipView: View {
         case .mediterranean: return lang.t("Mediterranean", "Akdeniz")
         case .american: return lang.t("American", "Amerikan")
         case .indian: return lang.t("Indian", "Hint")
+        case .japanese: return lang.t("Japanese", "Japon")
         }
     }
 
