@@ -138,7 +138,7 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
       ).filter(Boolean);
 
       const extraIngredients = (recipe.required_extra_ingredients || []).map((i: string) =>
-        i.toLowerCase().trim()
+        (typeof i === 'string' ? i : '').toLowerCase().trim()
       ).filter(Boolean);
 
       const allRequired = [...new Set([...normalized, ...ingredientNames])];
@@ -160,8 +160,8 @@ export async function saveRecipesToCache(recipes: any[], userIngredients: string
         servings,
         prep_minutes: 10,
         cook_minutes: 15,
-        required_ingredients: `{${allRequired.join(',')}}`,
-        optional_ingredients: extraIngredients.length > 0 ? `{${extraIngredients.join(',')}}` : `{}`,
+        required_ingredients: allRequired,
+        optional_ingredients: extraIngredients,
         recipe_data: recipeWithoutSource,
       };
 
