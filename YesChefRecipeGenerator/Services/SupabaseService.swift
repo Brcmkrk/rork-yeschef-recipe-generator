@@ -1,7 +1,31 @@
 import Foundation
 
+nonisolated enum FlexibleID: Codable, Sendable {
+    case int(Int)
+    case string(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let intVal = try? container.decode(Int.self) {
+            self = .int(intVal)
+        } else if let strVal = try? container.decode(String.self) {
+            self = .string(strVal)
+        } else {
+            self = .int(0)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .int(let v): try container.encode(v)
+        case .string(let v): try container.encode(v)
+        }
+    }
+}
+
 nonisolated struct SupabaseCacheRow: Codable, Sendable {
-    let id: String
+    let id: FlexibleID
     let recipe_id: String
     let recipe_data: RecipeData
     let created_at: String?
@@ -328,16 +352,51 @@ class SupabaseService {
     }
 
     func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String], language: String = "en") async -> [Recipe] {
-        guard isConfigured else { return [] }
+        guard isConfigured else {
+            print("[SupabaseService] fetchCachedRecipes: not configured")
+            return []
+        }
 
         let table = cacheTableName(for: language)
-        let query = "select=id,recipe_id,recipe_data&order=created_at.desc&limit=500"
-        guard let request = makeRequest(path: table, method: "GET", queryParams: query) else { return [] }
+        let query = "select=id,recipe_id,recipe_data,created_at&order=created_at.desc&limit=500"
+        guard let request = makeRequest(path: table, method: "GET", queryParams: query) else {
+            print("[SupabaseService] fetchCachedRecipes: failed to create request for \(table)")
+            return []
+        }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
-            let rows = (try? JSONDecoder().decode([SupabaseCacheRow].self, from: data)) ?? []
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: data, encoding: .utf8) ?? "unknown"
+                print("[SupabaseService] fetchCachedRecipes: HTTP \(status) from \(table) - \(body.prefix(200))")
+                return []
+            }
+
+            let decoder = JSONDecoder()
+            var rows: [SupabaseCacheRow] = []
+            if let decoded = try? decoder.decode([SupabaseCacheRow].self, from: data) {
+                rows = decoded
+            } else {
+                let rawBody = String(data: data, encoding: .utf8) ?? "empty"
+                print("[SupabaseService] fetchCachedRecipes: DECODE FAILED for \(table). First 300 chars: \(rawBody.prefix(300))")
+                if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    print("[SupabaseService] fetchCachedRecipes: raw JSON has \(jsonArray.count) items, first keys: \(jsonArray.first?.keys.sorted() ?? [])")
+                    for item in jsonArray {
+                        guard let recipeDataRaw = item["recipe_data"],
+                              let recipeJSON = try? JSONSerialization.data(withJSONObject: recipeDataRaw),
+                              let recipeData = try? decoder.decode(RecipeData.self, from: recipeJSON) else { continue }
+                        let recipeId = (item["recipe_id"] as? String) ?? "unknown"
+                        rows.append(SupabaseCacheRow(id: .int(0), recipe_id: recipeId, recipe_data: recipeData, created_at: item["created_at"] as? String))
+                    }
+                    print("[SupabaseService] fetchCachedRecipes: manual parse recovered \(rows.count) rows")
+                }
+            }
+
+            guard !rows.isEmpty else {
+                print("[SupabaseService] fetchCachedRecipes: 0 rows from \(table)")
+                return []
+            }
 
             let normalizedCuisines = Set(cuisines.map { $0.lowercased() })
             let inputWords: [String] = ingredients.flatMap { ing -> [String] in
@@ -347,6 +406,8 @@ class SupabaseService {
                 return words
             }
             let uniqueInputWords = Array(Set(inputWords)).filter { $0.count >= 2 }
+
+            print("[SupabaseService] fetchCachedRecipes: searching \(rows.count) rows with words: \(uniqueInputWords)")
 
             var scored: [(recipe: Recipe, score: Int)] = []
 
@@ -359,7 +420,7 @@ class SupabaseService {
                 for extra in recipe.required_extra_ingredients {
                     allNames.append(extra.lowercased().trimmingCharacters(in: .whitespaces))
                 }
-                let recipeText = allNames.joined(separator: " ")
+                let recipeText = (allNames + [recipe.title.lowercased(), recipe.description.lowercased()]).joined(separator: " ")
 
                 var matchCount = 0
                 for word in uniqueInputWords {
@@ -369,7 +430,7 @@ class SupabaseService {
                 }
 
                 let rawIngredientCount = ingredients.count
-                let threshold = rawIngredientCount <= 2 ? 1 : max(1, Int(ceil(Double(rawIngredientCount) * 0.25)))
+                let threshold = rawIngredientCount <= 2 ? 1 : max(1, Int(ceil(Double(rawIngredientCount) * 0.2)))
                 guard matchCount >= threshold else { continue }
 
                 var score = matchCount * 10
@@ -387,7 +448,7 @@ class SupabaseService {
                 return r
             }
         } catch {
-            print("[SupabaseService] fetchCachedRecipes error: \(error.localizedDescription)")
+            print("[SupabaseService] fetchCachedRecipes error: \(error)")
             return []
         }
     }

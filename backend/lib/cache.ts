@@ -18,6 +18,36 @@ function normalizeIngredients(ingredients: string[]): string[] {
   return ingredients.map(i => i.toLowerCase().trim()).filter(Boolean);
 }
 
+function stemWord(word: string): string {
+  const suffixes = ['ler', 'lar', 'ları', 'leri', 'es', 's', 'ies', 'ed', 'ing'];
+  let w = word;
+  for (const suffix of suffixes) {
+    if (w.length > suffix.length + 2 && w.endsWith(suffix)) {
+      w = w.slice(0, -suffix.length);
+      break;
+    }
+  }
+  return w;
+}
+
+function ingredientMatches(userWord: string, recipeNames: string[], recipeText: string): boolean {
+  const word = userWord.toLowerCase().trim();
+  if (word.length < 2) return false;
+  const stemmed = stemWord(word);
+
+  if (recipeText.includes(word)) return true;
+  if (stemmed.length >= 3 && recipeText.includes(stemmed)) return true;
+
+  for (const name of recipeNames) {
+    if (name.includes(word) || word.includes(name)) return true;
+    const nameStemmed = stemWord(name);
+    if (stemmed.length >= 3 && nameStemmed.length >= 3) {
+      if (nameStemmed.includes(stemmed) || stemmed.includes(nameStemmed)) return true;
+    }
+  }
+  return false;
+}
+
 function getCacheTable(language: string): string {
   return language === 'tr' ? 'ai_cache_turkish' : 'ai_cache';
 }
@@ -45,6 +75,15 @@ export async function getCachedRecipesByIngredients(
 
     if (!allCached || allCached.length === 0) return [];
 
+    const inputWords: string[] = [];
+    for (const ing of normalized) {
+      inputWords.push(ing);
+      for (const part of ing.split(' ')) {
+        if (part.length >= 2) inputWords.push(part);
+      }
+    }
+    const uniqueInputWords = [...new Set(inputWords)];
+
     const scored = allCached.map(row => {
       const data = typeof row.recipe_data === 'string'
         ? JSON.parse(row.recipe_data)
@@ -54,20 +93,31 @@ export async function getCachedRecipesByIngredients(
         .map((i: any) => (typeof i === 'string' ? i : i.name || '').toLowerCase().trim())
         .filter(Boolean);
 
-      const matchCount = ingredientNames.filter(i => normalized.includes(i)).length;
+      const recipeText = [...ingredientNames, (data.title || '').toLowerCase(), (data.description || '').toLowerCase()].join(' ');
+
+      let matchCount = 0;
+      for (const word of uniqueInputWords) {
+        if (ingredientMatches(word, ingredientNames, recipeText)) {
+          matchCount++;
+        }
+      }
+
       const totalRequired = ingredientNames.length;
-      const matchRatio = totalRequired > 0 ? matchCount / totalRequired : 0;
+      const matchRatio = totalRequired > 0 ? matchCount / Math.max(totalRequired, uniqueInputWords.length) : 0;
 
       return { row, matchCount, matchRatio, totalRequired };
     });
 
+    const rawCount = normalized.length;
+    const threshold = rawCount <= 2 ? 1 : Math.max(1, Math.ceil(rawCount * 0.2));
+
     const fullMatches = scored
-      .filter(s => s.totalRequired > 0 && s.matchRatio >= 1.0)
+      .filter(s => s.totalRequired > 0 && s.matchCount >= Math.max(2, rawCount))
       .sort((a, b) => b.matchCount - a.matchCount);
 
     const partialMatches = scored
-      .filter(s => s.totalRequired > 0 && s.matchRatio >= 0.5 && s.matchRatio < 1.0)
-      .sort((a, b) => b.matchRatio - a.matchRatio);
+      .filter(s => s.totalRequired > 0 && s.matchCount >= threshold && s.matchCount < Math.max(2, rawCount))
+      .sort((a, b) => b.matchCount - a.matchCount);
 
     const collected: CachedRecipe[] = [];
     const usedIds = new Set<string>();
@@ -90,7 +140,7 @@ export async function getCachedRecipesByIngredients(
       }
     }
 
-    console.log('[CACHE] Found', collected.length, 'cached recipes for ingredients:', normalized.join(', '));
+    console.log('[CACHE] Found', collected.length, 'cached recipes from', allCached.length, 'total rows for ingredients:', normalized.join(', '), '| inputWords:', uniqueInputWords.join(','), '| threshold:', threshold);
     return collected;
   } catch (err) {
     console.error('[CACHE] Error:', err);
