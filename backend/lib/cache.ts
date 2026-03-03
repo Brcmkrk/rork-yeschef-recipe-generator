@@ -19,7 +19,7 @@ function normalizeIngredients(ingredients: string[]): string[] {
 }
 
 function getCacheTable(language: string): string {
-  return language === 'tr' ? 'ai_cache_Turkish' : 'ai_cache';
+  return language === 'tr' ? 'ai_cache_turkish' : 'ai_cache';
 }
 
 export async function getCachedRecipesByIngredients(

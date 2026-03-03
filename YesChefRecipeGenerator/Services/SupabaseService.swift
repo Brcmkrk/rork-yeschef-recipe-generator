@@ -255,7 +255,7 @@ class SupabaseService {
     }
 
     private func cacheTableName(for language: String) -> String {
-        language == "tr" ? "ai_cache_Turkish" : "ai_cache"
+        language == "tr" ? "ai_cache_turkish" : "ai_cache"
     }
 
     func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String], language: String = "en") async -> [Recipe] {
