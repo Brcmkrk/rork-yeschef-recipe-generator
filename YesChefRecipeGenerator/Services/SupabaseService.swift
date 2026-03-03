@@ -1,5 +1,12 @@
 import Foundation
 
+nonisolated struct SupabaseCacheRow: Codable, Sendable {
+    let id: String
+    let recipe_id: String
+    let recipe_data: RecipeData
+    let created_at: String?
+}
+
 nonisolated struct SupabaseReaction: Codable, Sendable {
     let id: Int?
     let device_id: String
@@ -245,6 +252,53 @@ class SupabaseService {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
         let results = (try? JSONDecoder().decode([SupabaseTriedRecipe].self, from: data)) ?? []
         return results.first
+    }
+
+    func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String]) async -> [Recipe] {
+        guard isConfigured else { return [] }
+
+        let query = "select=id,recipe_id,recipe_data&order=created_at.desc&limit=200"
+        guard let request = makeRequest(path: "ai_cache", method: "GET", queryParams: query) else { return [] }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
+            let rows = (try? JSONDecoder().decode([SupabaseCacheRow].self, from: data)) ?? []
+
+            let normalizedInput = Set(ingredients.map { $0.lowercased().trimmingCharacters(in: .whitespaces) })
+            let normalizedCuisines = Set(cuisines.map { $0.lowercased() })
+
+            var scored: [(recipe: Recipe, score: Int)] = []
+
+            for row in rows {
+                guard let recipe = row.recipe_data.toRecipe() else { continue }
+                guard recipe.servings == servings else { continue }
+
+                if !normalizedCuisines.isEmpty {
+                    let recipeCuisine = recipe.cuisine.lowercased()
+                    guard normalizedCuisines.contains(recipeCuisine) else { continue }
+                }
+
+                let recipeIngredientNames = Set(recipe.ingredients.map { $0.name.lowercased().trimmingCharacters(in: .whitespaces) })
+                let matchCount = normalizedInput.filter { input in
+                    recipeIngredientNames.contains(where: { $0.contains(input) || input.contains($0) })
+                }.count
+
+                guard matchCount >= max(1, normalizedInput.count / 2) else { continue }
+
+                scored.append((recipe: recipe, score: matchCount))
+            }
+
+            scored.sort { $0.score > $1.score }
+            return scored.prefix(4).map {
+                var r = $0.recipe
+                r.source = "cache"
+                return r
+            }
+        } catch {
+            print("[SupabaseService] fetchCachedRecipes error: \(error.localizedDescription)")
+            return []
+        }
     }
 
     func saveRecipesToCache(_ recipes: [Recipe]) async {

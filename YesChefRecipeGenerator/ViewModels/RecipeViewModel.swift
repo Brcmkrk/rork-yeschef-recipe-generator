@@ -142,27 +142,56 @@ class RecipeViewModel {
 
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
+            let totalNeeded = exactMatchCount + extraIngredientCount
 
-            let response = try await OpenAIService.shared.generateRecipes(
-                ingredients: ingredientsList,
-                cuisines: cuisineNames,
-                servings: servings,
-                language: language,
-                exactCount: exactMatchCount,
-                extraCount: extraIngredientCount,
-                excludeTitles: excludeTitles
-            )
+            var cachedRecipes: [Recipe] = []
+            let maxFromCache = totalNeeded / 2
 
-            exactMatchRecipes = response.exact_match_recipes.map { var r = $0; r.language = language; return r }
-            extraIngredientRecipes = response.extra_ingredient_recipes.map { var r = $0; r.language = language; return r }
-            cachedCount = response._cache?.cached_count ?? 0
+            if SupabaseService.shared.isConfigured {
+                let candidates = await SupabaseService.shared.fetchCachedRecipes(
+                    ingredients: ingredientsList,
+                    servings: servings,
+                    cuisines: cuisineNames
+                )
+                let filtered = candidates.filter { !excludeTitles.contains($0.title) }
+                cachedRecipes = Array(filtered.shuffled().prefix(maxFromCache))
+            }
+
+            let cachedExact = cachedRecipes.filter { $0.required_extra_ingredients.isEmpty }
+            let cachedExtra = cachedRecipes.filter { !$0.required_extra_ingredients.isEmpty }
+
+            let neededExact = max(0, exactMatchCount - cachedExact.count)
+            let neededExtra = max(0, extraIngredientCount - cachedExtra.count)
+
+            var aiExact: [Recipe] = []
+            var aiExtra: [Recipe] = []
+
+            if neededExact > 0 || neededExtra > 0 {
+                let allExclude = excludeTitles + cachedRecipes.map { $0.title }
+                let response = try await OpenAIService.shared.generateRecipes(
+                    ingredients: ingredientsList,
+                    cuisines: cuisineNames,
+                    servings: servings,
+                    language: language,
+                    exactCount: neededExact,
+                    extraCount: neededExtra,
+                    excludeTitles: allExclude
+                )
+                aiExact = response.exact_match_recipes
+                aiExtra = response.extra_ingredient_recipes
+            }
+
+            let finalExact = (cachedExact + aiExact).prefix(exactMatchCount)
+            let finalExtra = (cachedExtra + aiExtra).prefix(extraIngredientCount)
+
+            exactMatchRecipes = finalExact.map { var r = $0; r.language = language; return r }
+            extraIngredientRecipes = finalExtra.map { var r = $0; r.language = language; return r }
+            cachedCount = cachedRecipes.count
             hasResults = true
 
-            let cacheHit = response._cache?.cached_count ?? 0
-            if cacheHit <= 1 {
-                let allRecipes = exactMatchRecipes + extraIngredientRecipes
-                let shuffled = allRecipes.shuffled()
-                let toCache = Array(shuffled.prefix(2))
+            if cachedRecipes.count <= 1 {
+                let aiRecipes = aiExact + aiExtra
+                let toCache = Array(aiRecipes.shuffled().prefix(2))
                 Task {
                     await SupabaseService.shared.saveRecipesToCache(toCache)
                 }
