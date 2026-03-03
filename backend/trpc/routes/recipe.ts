@@ -52,7 +52,7 @@ export const recipeRouter = createTRPCRouter({
 
       let cachedRecipes: any[] = [];
       if (input.excludeTitles.length === 0) {
-        cachedRecipes = await getCachedRecipesByIngredients(input.ingredients, maxCached);
+        cachedRecipes = await getCachedRecipesByIngredients(input.ingredients, maxCached, input.language);
       }
 
       const cachedCount = cachedRecipes.length;
@@ -144,9 +144,9 @@ export const recipeRouter = createTRPCRouter({
           const allFinal = [...finalExact, ...finalExtra];
           const shuffled = [...allFinal].sort(() => Math.random() - 0.5);
           const toSave = shuffled.slice(0, 2);
-          console.log('[TRPC] cachedCount=', cachedCount, '=> saving', toSave.length, 'to cache');
+          console.log('[TRPC] cachedCount=', cachedCount, '=> saving', toSave.length, 'to cache, language:', input.language);
           try {
-            await saveRecipesToCache(toSave);
+            await saveRecipesToCache(toSave, input.language);
           } catch (err) {
             console.error('[TRPC] Cache save error:', err);
           }

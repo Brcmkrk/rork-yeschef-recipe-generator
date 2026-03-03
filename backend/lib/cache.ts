@@ -18,16 +18,22 @@ function normalizeIngredients(ingredients: string[]): string[] {
   return ingredients.map(i => i.toLowerCase().trim()).filter(Boolean);
 }
 
+function getCacheTable(language: string): string {
+  return language === 'tr' ? 'ai_cache_Turkish' : 'ai_cache';
+}
+
 export async function getCachedRecipesByIngredients(
   userIngredients: string[],
-  limit: number = 2
+  limit: number = 2,
+  language: string = 'en'
 ): Promise<CachedRecipe[]> {
   const normalized = normalizeIngredients(userIngredients);
   if (normalized.length === 0) return [];
 
+  const table = getCacheTable(language);
   try {
     const { data: allCached, error } = await supabase
-      .from('ai_cache')
+      .from(table)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
@@ -112,11 +118,12 @@ function rowToRecipe(row: any): CachedRecipe {
   };
 }
 
-export async function saveRecipesToCache(recipes: any[]): Promise<void> {
+export async function saveRecipesToCache(recipes: any[], language: string = 'en'): Promise<void> {
   if (recipes.length === 0) return;
 
+  const table = getCacheTable(language);
   const rows = recipes.map((recipe) => {
-    const { source, language, ...rest } = recipe;
+    const { source, language: lang, ...rest } = recipe;
     const recipeId = `cache_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const recipeData = {
       ...rest,
@@ -128,17 +135,17 @@ export async function saveRecipesToCache(recipes: any[]): Promise<void> {
     };
   });
 
-  console.log('[CACHE-SAVE] Inserting', rows.length, 'recipes:', rows.map(r => (r.recipe_data as any).title));
+  console.log('[CACHE-SAVE] Inserting', rows.length, 'recipes to', table, ':', rows.map(r => (r.recipe_data as any).title));
 
   const { data, error } = await supabase
-    .from('ai_cache')
+    .from(table)
     .insert(rows)
     .select();
 
   if (error) {
     console.error('[CACHE-SAVE] FAILED:', error.message, '| code:', error.code, '| hint:', (error as any).hint, '| details:', error.details);
   } else {
-    console.log('[CACHE-SAVE] SUCCESS: inserted', data?.length, 'rows');
+    console.log('[CACHE-SAVE] SUCCESS: inserted', data?.length, 'rows into', table);
   }
 }
 
@@ -146,9 +153,10 @@ export async function getPopularRecipes(
   language: string,
   limit: number = 10
 ): Promise<CachedRecipe[]> {
+  const table = getCacheTable(language);
   try {
     const { data } = await supabase
-      .from('ai_cache')
+      .from(table)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);

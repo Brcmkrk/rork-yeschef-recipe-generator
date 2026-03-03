@@ -63,7 +63,7 @@ app.post("/generate-recipe", async (c) => {
 
     let cachedRecipes: any[] = [];
     if (excludeTitles.length === 0) {
-      cachedRecipes = await getCachedRecipesByIngredients(ingredients, maxCached);
+      cachedRecipes = await getCachedRecipesByIngredients(ingredients, maxCached, language);
     }
 
     const cachedCount = cachedRecipes.length;
@@ -158,9 +158,9 @@ app.post("/generate-recipe", async (c) => {
         const allFinal = [...finalExact, ...finalExtra];
         const shuffled = [...allFinal].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, 2);
-        console.log('[GENERATE] cachedCount=', cachedCount, '=> saving', toSave.length, 'recipes to cache:', toSave.map((r: any) => r.title));
+        console.log('[GENERATE] cachedCount=', cachedCount, '=> saving', toSave.length, 'recipes to cache, language:', language, ':', toSave.map((r: any) => r.title));
         try {
-          await saveRecipesToCache(toSave);
+          await saveRecipesToCache(toSave, language);
         } catch (err) {
           console.error('[GENERATE] Cache save error:', err);
         }
