@@ -145,7 +145,7 @@ class RecipeViewModel {
             let totalNeeded = exactMatchCount + extraIngredientCount
 
             var cachedRecipes: [Recipe] = []
-            let maxFromCache = totalNeeded / 2
+            let maxFromCache = min(3, totalNeeded)
 
             if SupabaseService.shared.isConfigured {
                 let candidates = await SupabaseService.shared.fetchCachedRecipes(
@@ -163,19 +163,27 @@ class RecipeViewModel {
 
             let neededExact = max(0, exactMatchCount - cachedExact.count)
             let neededExtra = max(0, extraIngredientCount - cachedExtra.count)
+            let aiNeededTotal = neededExact + neededExtra
 
             var aiExact: [Recipe] = []
             var aiExtra: [Recipe] = []
 
-            if neededExact > 0 || neededExtra > 0 {
+            let aiMinimum = max(1, totalNeeded - cachedRecipes.count)
+
+            if aiNeededTotal > 0 {
+                let finalNeededExact = max(neededExact, aiMinimum > neededExtra ? aiMinimum - neededExtra : 0)
+                let finalNeededExtra = max(neededExtra, aiMinimum > neededExact ? aiMinimum - neededExact : 0)
+                let adjustedExact = min(finalNeededExact, max(0, exactMatchCount - cachedExact.count) + (aiMinimum > 0 ? 1 : 0))
+                let adjustedExtra = max(0, aiMinimum - adjustedExact + neededExtra)
+
                 let allExclude = excludeTitles + cachedRecipes.map { $0.title }
                 let response = try await OpenAIService.shared.generateRecipes(
                     ingredients: ingredientsList,
                     cuisines: cuisineNames,
                     servings: servings,
                     language: language,
-                    exactCount: neededExact,
-                    extraCount: neededExtra,
+                    exactCount: neededExact > 0 ? neededExact : 0,
+                    extraCount: neededExtra > 0 ? neededExtra : 0,
                     excludeTitles: allExclude
                 )
                 aiExact = response.exact_match_recipes

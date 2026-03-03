@@ -284,9 +284,13 @@ class SupabaseService {
                     guard normalizedCuisines.contains(recipeCuisine) else { continue }
                 }
 
-                let recipeIngredientNames = Set(recipe.ingredients.map { $0.name.lowercased().trimmingCharacters(in: .whitespaces) })
+                var allRecipeIngredients = Set(recipe.ingredients.map { $0.name.lowercased().trimmingCharacters(in: .whitespaces) })
+                for extra in recipe.required_extra_ingredients {
+                    allRecipeIngredients.insert(extra.lowercased().trimmingCharacters(in: .whitespaces))
+                }
+
                 let matchCount = normalizedInput.filter { input in
-                    recipeIngredientNames.contains(where: { $0.contains(input) || input.contains($0) })
+                    allRecipeIngredients.contains(where: { $0.contains(input) || input.contains($0) })
                 }.count
 
                 guard matchCount >= max(1, normalizedInput.count / 2) else { continue }
@@ -295,7 +299,7 @@ class SupabaseService {
             }
 
             scored.sort { $0.score > $1.score }
-            return scored.prefix(4).map {
+            return scored.prefix(10).map {
                 var r = $0.recipe
                 r.source = "cache"
                 return r

@@ -102,8 +102,13 @@ struct LoadingView: View {
 
                     if let pt = catchEffect {
                         Text(catchEmoji)
-                            .font(.system(size: 50))
-                            .position(x: pt.x, y: pt.y)
+                            .font(.system(.title2, design: .rounded, weight: .black))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial)
+                            .clipShape(.capsule)
+                            .position(x: pt.x, y: pt.y - 20)
                             .transition(.scale.combined(with: .opacity))
                             .onAppear {
                                 Task { @MainActor in
@@ -119,8 +124,9 @@ struct LoadingView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { location in
                     if game.catchFood(at: location) {
+                        let pops = ["+1", "yum!", "nice!", "got it!"]
                         withAnimation(.spring(duration: 0.2)) {
-                            catchEmoji = "✅"
+                            catchEmoji = pops.randomElement() ?? "+1"
                             catchEffect = location
                         }
                     }
@@ -190,46 +196,40 @@ struct LoadingView: View {
                 .padding(.bottom, 32)
             }
 
-            if game.showBanner {
-                VStack {
+            VStack {
+                Spacer()
+                HStack {
                     Spacer()
-                        .frame(height: 80)
-
                     Button {
-                        onShowRecipes()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.green)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(lang.t("Recipes are ready!", "Tarifler hazır!"))
-                                    .font(.system(.subheadline, design: .rounded, weight: .bold))
-                                    .foregroundStyle(.primary)
-                                Text(lang.t("Tap to view your recipes", "Tariflerini görmek için dokun"))
-                                    .font(.system(.caption, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.orange)
+                        if game.showBanner {
+                            onShowRecipes()
                         }
-                        .padding(16)
-                        .background(.ultraThickMaterial)
-                        .clipShape(.rect(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(game.showBanner ? Color.green : Color(.systemGray4))
+                                .frame(width: 64, height: 64)
+                                .shadow(color: game.showBanner ? .green.opacity(0.5) : .black.opacity(0.1), radius: game.showBanner ? 12 : 4, y: 2)
+
+                            if game.showBanner {
+                                Image(systemName: "exclamationmark")
+                                    .font(.system(size: 28, weight: .black))
+                                    .foregroundStyle(.white)
+                                    .shadow(color: .white.opacity(0.8), radius: 6)
+                                    .transition(.scale.combined(with: .opacity))
+                            } else {
+                                Image(systemName: "fork.knife")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        .animation(.spring(duration: 0.5, bounce: 0.3), value: game.showBanner)
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal, 20)
-                    .transition(.move(edge: .top).combined(with: .opacity))
                     .sensoryFeedback(.success, trigger: game.showBanner)
-
-                    Spacer()
                 }
+                .padding(.trailing, 24)
+                .padding(.bottom, 40)
             }
         }
         .onChange(of: recipesReady) { _, newValue in
