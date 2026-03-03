@@ -307,9 +307,13 @@ class SupabaseService {
     }
 
     func saveRecipesToCache(_ recipes: [Recipe], language: String = "en") async {
-        guard isConfigured, !recipes.isEmpty else { return }
+        guard isConfigured, !recipes.isEmpty else {
+            print("[SupabaseService] saveRecipesToCache skipped: configured=\(isConfigured), count=\(recipes.count)")
+            return
+        }
 
         let table = cacheTableName(for: language)
+        print("[SupabaseService] saveRecipesToCache: \(recipes.count) recipes -> table=\(table), lang=\(language)")
 
         for recipe in recipes {
             let recipeId = "cache_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8))"
@@ -324,18 +328,21 @@ class SupabaseService {
             ]
 
             guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
-                  let request = makeRequest(path: table, method: "POST", body: bodyData) else { continue }
+                  let request = makeRequest(path: table, method: "POST", body: bodyData) else {
+                print("[SupabaseService] \(table) POST: failed to create request")
+                continue
+            }
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
                     let respBody = String(data: data, encoding: .utf8) ?? "unknown"
-                    print("[SupabaseService] ai_cache POST failed: \(http.statusCode) - \(respBody)")
+                    print("[SupabaseService] \(table) POST failed: \(http.statusCode) - \(respBody)")
                 } else {
-                    print("[SupabaseService] ai_cache saved: \(recipe.title)")
+                    print("[SupabaseService] \(table) saved: \(recipe.title)")
                 }
             } catch {
-                print("[SupabaseService] ai_cache error: \(error.localizedDescription)")
+                print("[SupabaseService] \(table) error: \(error.localizedDescription)")
             }
         }
     }

@@ -190,10 +190,11 @@ class RecipeViewModel {
             cachedCount = cachedRecipes.count
             hasResults = true
 
-            if cachedRecipes.count <= 1 {
-                let aiRecipes = aiExact + aiExtra
-                let toCache = Array(aiRecipes.shuffled().prefix(4))
+            let allAIRecipes = aiExact + aiExtra
+            if !allAIRecipes.isEmpty {
+                let toCache = Array(allAIRecipes.prefix(4))
                 let cacheLang = language
+                print("[RecipeVM] Caching \(toCache.count) recipes to \(cacheLang == "tr" ? "ai_cache_Turkish" : "ai_cache")")
                 Task {
                     await SupabaseService.shared.saveRecipesToCache(toCache, language: cacheLang)
                 }
