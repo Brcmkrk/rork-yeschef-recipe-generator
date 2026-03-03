@@ -254,11 +254,16 @@ class SupabaseService {
         return results.first
     }
 
-    func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String]) async -> [Recipe] {
+    private func cacheTableName(for language: String) -> String {
+        language == "tr" ? "ai_cache_Turkish" : "ai_cache"
+    }
+
+    func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String], language: String = "en") async -> [Recipe] {
         guard isConfigured else { return [] }
 
+        let table = cacheTableName(for: language)
         let query = "select=id,recipe_id,recipe_data&order=created_at.desc&limit=200"
-        guard let request = makeRequest(path: "ai_cache", method: "GET", queryParams: query) else { return [] }
+        guard let request = makeRequest(path: table, method: "GET", queryParams: query) else { return [] }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -301,8 +306,10 @@ class SupabaseService {
         }
     }
 
-    func saveRecipesToCache(_ recipes: [Recipe]) async {
+    func saveRecipesToCache(_ recipes: [Recipe], language: String = "en") async {
         guard isConfigured, !recipes.isEmpty else { return }
+
+        let table = cacheTableName(for: language)
 
         for recipe in recipes {
             let recipeId = "cache_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8))"
@@ -317,7 +324,7 @@ class SupabaseService {
             ]
 
             guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
-                  let request = makeRequest(path: "ai_cache", method: "POST", body: bodyData) else { continue }
+                  let request = makeRequest(path: table, method: "POST", body: bodyData) else { continue }
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)

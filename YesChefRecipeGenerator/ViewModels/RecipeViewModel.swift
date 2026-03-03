@@ -151,7 +151,8 @@ class RecipeViewModel {
                 let candidates = await SupabaseService.shared.fetchCachedRecipes(
                     ingredients: ingredientsList,
                     servings: servings,
-                    cuisines: cuisineNames
+                    cuisines: cuisineNames,
+                    language: language
                 )
                 let filtered = candidates.filter { !excludeTitles.contains($0.title) }
                 cachedRecipes = Array(filtered.shuffled().prefix(maxFromCache))
@@ -192,8 +193,9 @@ class RecipeViewModel {
             if cachedRecipes.count <= 1 {
                 let aiRecipes = aiExact + aiExtra
                 let toCache = Array(aiRecipes.shuffled().prefix(4))
+                let cacheLang = language
                 Task {
-                    await SupabaseService.shared.saveRecipesToCache(toCache)
+                    await SupabaseService.shared.saveRecipesToCache(toCache, language: cacheLang)
                 }
             }
         } catch is CancellationError {
