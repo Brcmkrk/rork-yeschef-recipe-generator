@@ -198,15 +198,7 @@ class RecipeViewModel {
             cachedCount = cachedRecipes.count
             hasResults = true
 
-            let allAIRecipes = aiExact + aiExtra
-            if !allAIRecipes.isEmpty {
-                let toCache = Array(allAIRecipes.prefix(4))
-                let cacheLang = language
-                print("[RecipeVM] Caching \(toCache.count) recipes to \(cacheLang == "tr" ? "ai_cache_turkish" : "ai_cache")")
-                Task {
-                    await SupabaseService.shared.saveRecipesToCache(toCache, language: cacheLang)
-                }
-            }
+            print("[RecipeVM] Result: \(cachedRecipes.count) from cache, \(aiExact.count + aiExtra.count) from AI")
         } catch is CancellationError {
             // cancelled
         } catch {

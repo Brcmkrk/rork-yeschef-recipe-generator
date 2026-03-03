@@ -258,6 +258,14 @@ class SupabaseService {
         language == "tr" ? "ai_cache_turkish" : "ai_cache"
     }
 
+    private func normalizeIngredient(_ text: String) -> [String] {
+        let lowered = text.lowercased().trimmingCharacters(in: .whitespaces)
+        let words = lowered.split(separator: " ").map { String($0) }
+        var result = [lowered]
+        result.append(contentsOf: words)
+        return result
+    }
+
     func fetchCachedRecipes(ingredients: [String], servings: Int, cuisines: [String], language: String = "en") async -> [Recipe] {
         guard isConfigured else { return [] }
 
@@ -270,7 +278,7 @@ class SupabaseService {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
             let rows = (try? JSONDecoder().decode([SupabaseCacheRow].self, from: data)) ?? []
 
-            let normalizedInput = Set(ingredients.map { $0.lowercased().trimmingCharacters(in: .whitespaces) })
+            let inputWords: [[String]] = ingredients.map { normalizeIngredient($0) }
             let normalizedCuisines = Set(cuisines.map { $0.lowercased() })
 
             var scored: [(recipe: Recipe, score: Int)] = []
@@ -284,21 +292,31 @@ class SupabaseService {
                     guard normalizedCuisines.contains(recipeCuisine) else { continue }
                 }
 
-                var allRecipeIngredients = Set(recipe.ingredients.map { $0.name.lowercased().trimmingCharacters(in: .whitespaces) })
+                var allRecipeIngredientNames: [String] = recipe.ingredients.map { $0.name.lowercased().trimmingCharacters(in: .whitespaces) }
                 for extra in recipe.required_extra_ingredients {
-                    allRecipeIngredients.insert(extra.lowercased().trimmingCharacters(in: .whitespaces))
+                    allRecipeIngredientNames.append(extra.lowercased().trimmingCharacters(in: .whitespaces))
+                }
+                let recipeIngredientText = allRecipeIngredientNames.joined(separator: " ")
+
+                var matchCount = 0
+                for wordGroup in inputWords {
+                    let matched = wordGroup.contains { word in
+                        allRecipeIngredientNames.contains(where: { $0.contains(word) || word.contains($0) }) ||
+                        recipeIngredientText.contains(word)
+                    }
+                    if matched {
+                        matchCount += 1
+                    }
                 }
 
-                let matchCount = normalizedInput.filter { input in
-                    allRecipeIngredients.contains(where: { $0.contains(input) || input.contains($0) })
-                }.count
-
-                guard matchCount >= max(1, normalizedInput.count / 2) else { continue }
+                let threshold = max(1, Int(ceil(Double(ingredients.count) * 0.4)))
+                guard matchCount >= threshold else { continue }
 
                 scored.append((recipe: recipe, score: matchCount))
             }
 
             scored.sort { $0.score > $1.score }
+            print("[SupabaseService] fetchCachedRecipes: \(scored.count) matches from \(rows.count) rows in \(table)")
             return scored.prefix(10).map {
                 var r = $0.recipe
                 r.source = "cache"
