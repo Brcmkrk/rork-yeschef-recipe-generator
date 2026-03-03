@@ -12,7 +12,6 @@ struct ProfileView: View {
             ScrollView {
                 VStack(spacing: 28) {
                     statsSection
-                    languageSection
                     likedRecipesSection
                     triedRecipesSection
                 }
@@ -41,10 +40,6 @@ struct ProfileView: View {
             }
             .navigationTitle(lang.t("Profile", "Profil"))
             .navigationBarTitleDisplayMode(.large)
-            .onChange(of: lang.current) { _, newValue in
-                likesStore.translateRecipes(to: newValue.rawValue)
-                triedStore.translateRecipes(to: newValue.rawValue)
-            }
             .sheet(isPresented: Binding(
                 get: { selectedRecipeId != nil },
                 set: { if !$0 { selectedRecipeId = nil } }
@@ -103,60 +98,6 @@ struct ProfileView: View {
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(.rect(cornerRadius: 18))
         .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
-    }
-
-    private var languageSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "globe")
-                    .foregroundStyle(.blue)
-                Text(lang.t("Language", "Dil"))
-                    .font(.system(.headline, design: .rounded))
-            }
-            .padding(.horizontal, 16)
-
-            HStack(spacing: 10) {
-                ForEach(AppLanguage.allCases, id: \.rawValue) { language in
-                    Button {
-                        withAnimation(.spring(duration: 0.3)) {
-                            lang.current = language
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text(language.flag)
-                                .font(.body)
-                            Text(language.displayName)
-                                .font(.system(.subheadline, design: .rounded, weight: .medium))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            lang.current == language
-                                ? AnyShapeStyle(
-                                    LinearGradient(
-                                        colors: [.orange.opacity(0.08), .orange.opacity(0.16)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
-                        )
-                        .foregroundStyle(lang.current == language ? .orange : .primary)
-                        .clipShape(.rect(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(
-                                    lang.current == language ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.2),
-                                    lineWidth: 1
-                                )
-                        )
-                        .shadow(color: lang.current == language ? .orange.opacity(0.1) : .clear, radius: 4, y: 1)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
     }
 
     private var likedRecipesSection: some View {

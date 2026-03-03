@@ -21,6 +21,9 @@ struct ContentView: View {
                 Tab(lang.t("Profile", "Profil"), systemImage: "person.fill") {
                     ProfileView()
                 }
+                Tab(lang.t("Settings", "Ayarlar"), systemImage: "gearshape.fill") {
+                    SettingsView()
+                }
             }
             .tint(.orange)
         }
