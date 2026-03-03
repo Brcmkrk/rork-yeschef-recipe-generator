@@ -66,7 +66,7 @@ export async function getCachedRecipesByIngredients(
       .from(table)
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(100);
 
     if (error) {
       console.error('[CACHE] Query error:', error.message);

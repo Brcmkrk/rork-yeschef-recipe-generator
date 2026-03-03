@@ -100,6 +100,9 @@ app.post("/generate-recipe", async (c) => {
 
     console.log('[GENERATE] Requesting AI:', aiExactNeeded, 'exact +', aiExtraNeeded, 'extra');
 
+    const aiRecipeCount = aiExactNeeded + aiExtraNeeded;
+    const dynamicMaxTokens = Math.min(4000, Math.max(1500, aiRecipeCount * 1200));
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -107,7 +110,7 @@ app.post("/generate-recipe", async (c) => {
         { role: "user", content: userPrompt },
       ],
       temperature: 0.95,
-      max_tokens: 4000,
+      max_tokens: dynamicMaxTokens,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -158,12 +161,8 @@ app.post("/generate-recipe", async (c) => {
         const allFinal = [...finalExact, ...finalExtra];
         const shuffled = [...allFinal].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, 2);
-        console.log('[GENERATE] cachedCount=', cachedCount, '=> saving', toSave.length, 'recipes to cache, language:', language, ':', toSave.map((r: any) => r.title));
-        try {
-          await saveRecipesToCache(toSave, language);
-        } catch (err) {
-          console.error('[GENERATE] Cache save error:', err);
-        }
+        console.log('[GENERATE] cachedCount=', cachedCount, '=> saving', toSave.length, 'recipes to cache (non-blocking), language:', language);
+        saveRecipesToCache(toSave, language).catch(err => console.error('[GENERATE] Cache save error:', err));
       } else {
         console.log('[GENERATE] cachedCount=', cachedCount, '=> skipping cache save');
       }
