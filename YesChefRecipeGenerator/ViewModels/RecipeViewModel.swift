@@ -191,7 +191,7 @@ class RecipeViewModel {
 
             if cachedRecipes.count <= 1 {
                 let aiRecipes = aiExact + aiExtra
-                let toCache = Array(aiRecipes.shuffled().prefix(2))
+                let toCache = Array(aiRecipes.shuffled().prefix(4))
                 Task {
                     await SupabaseService.shared.saveRecipesToCache(toCache)
                 }
