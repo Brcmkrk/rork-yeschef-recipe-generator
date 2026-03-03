@@ -19,7 +19,7 @@ function normalizeIngredients(ingredients: string[]): string[] {
 }
 
 function stemWord(word: string): string {
-  const suffixes = ['ler', 'lar', 'ları', 'leri', 'es', 's', 'ies', 'ed', 'ing'];
+  const suffixes = ['ları', 'leri', 'ler', 'lar', 'ies', 'ing', 'ed', 'es', 's'];
   let w = word;
   for (const suffix of suffixes) {
     if (w.length > suffix.length + 2 && w.endsWith(suffix)) {
@@ -30,15 +30,13 @@ function stemWord(word: string): string {
   return w;
 }
 
-function ingredientMatches(userWord: string, recipeNames: string[], recipeText: string): boolean {
+function ingredientMatches(userWord: string, recipeNames: string[]): boolean {
   const word = userWord.toLowerCase().trim();
   if (word.length < 2) return false;
   const stemmed = stemWord(word);
 
-  if (recipeText.includes(word)) return true;
-  if (stemmed.length >= 3 && recipeText.includes(stemmed)) return true;
-
   for (const name of recipeNames) {
+    if (name === word) return true;
     if (name.includes(word) || word.includes(name)) return true;
     const nameStemmed = stemWord(name);
     if (stemmed.length >= 3 && nameStemmed.length >= 3) {
@@ -50,6 +48,58 @@ function ingredientMatches(userWord: string, recipeNames: string[], recipeText: 
 
 function getCacheTable(language: string): string {
   return language === 'tr' ? 'ai_cache_turkish' : 'ai_cache';
+}
+
+function extractIngredientNames(row: any): string[] {
+  const names: string[] = [];
+
+  const data = typeof row.recipe_data === 'string'
+    ? (() => { try { return JSON.parse(row.recipe_data); } catch { return {}; } })()
+    : (row.recipe_data || {});
+
+  if (data.ingredients && Array.isArray(data.ingredients)) {
+    for (const ing of data.ingredients) {
+      const n = (typeof ing === 'string' ? ing : (ing.name || '')).toLowerCase().trim();
+      if (n) names.push(n);
+    }
+  }
+
+  if (data.required_extra_ingredients && Array.isArray(data.required_extra_ingredients)) {
+    for (const extra of data.required_extra_ingredients) {
+      const n = (typeof extra === 'string' ? extra : '').toLowerCase().trim();
+      if (n) names.push(n);
+    }
+  }
+
+  if (row.required_ingredients) {
+    const ri = row.required_ingredients;
+    let parsed: string[] = [];
+    if (Array.isArray(ri)) {
+      parsed = ri;
+    } else if (typeof ri === 'string') {
+      parsed = ri.replace(/[{}\[\]"]/g, '').split(',');
+    }
+    for (const p of parsed) {
+      const n = p.toLowerCase().trim();
+      if (n && !names.includes(n)) names.push(n);
+    }
+  }
+
+  if (row.optional_ingredients) {
+    const oi = row.optional_ingredients;
+    let parsed: string[] = [];
+    if (Array.isArray(oi)) {
+      parsed = oi;
+    } else if (typeof oi === 'string') {
+      parsed = oi.replace(/[{}\[\]"]/g, '').split(',');
+    }
+    for (const p of parsed) {
+      const n = p.toLowerCase().trim();
+      if (n && !names.includes(n)) names.push(n);
+    }
+  }
+
+  return names.filter(Boolean);
 }
 
 export async function getCachedRecipesByIngredients(
@@ -66,10 +116,10 @@ export async function getCachedRecipesByIngredients(
       .from(table)
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(300);
 
     if (error) {
-      console.error('[CACHE] Query error:', error.message, '| code:', error.code, '| hint:', (error as any).hint);
+      console.error('[CACHE] Query error:', error.message, '| code:', error.code);
       return [];
     }
 
@@ -83,82 +133,53 @@ export async function getCachedRecipesByIngredients(
     const inputWords: string[] = [];
     for (const ing of normalized) {
       inputWords.push(ing);
-      for (const part of ing.split(' ')) {
-        if (part.length >= 2) inputWords.push(part);
+      for (const part of ing.split(/[\s,]+/)) {
+        if (part.length >= 2 && !inputWords.includes(part)) inputWords.push(part);
       }
     }
     const uniqueInputWords = [...new Set(inputWords)];
 
     const scored = allCached.map(row => {
-      let ingredientNames: string[] = [];
-
-      if (row.required_ingredients) {
-        const ri = row.required_ingredients;
-        if (Array.isArray(ri)) {
-          ingredientNames = ri.map((n: string) => n.toLowerCase().trim()).filter(Boolean);
-        } else if (typeof ri === 'string') {
-          ingredientNames = ri.replace(/[{}]/g, '').split(',').map((n: string) => n.toLowerCase().trim()).filter(Boolean);
-        }
-      }
-
-      if (row.optional_ingredients) {
-        const oi = row.optional_ingredients;
-        if (Array.isArray(oi)) {
-          ingredientNames.push(...oi.map((n: string) => n.toLowerCase().trim()).filter(Boolean));
-        } else if (typeof oi === 'string') {
-          const parsed = oi.replace(/[{}]/g, '').split(',').map((n: string) => n.toLowerCase().trim()).filter(Boolean);
-          ingredientNames.push(...parsed);
-        }
-      }
-
-      if (ingredientNames.length === 0) {
-        const data = typeof row.recipe_data === 'string'
-          ? JSON.parse(row.recipe_data)
-          : (row.recipe_data || {});
-
-        ingredientNames = (data.ingredients || [])
-          .map((i: any) => (typeof i === 'string' ? i : i.name || '').toLowerCase().trim())
-          .filter(Boolean);
-      }
-
-      const recipeText = ingredientNames.join(' ') + ' ' +
-        ((row.title || '').toLowerCase()) + ' ' +
-        (typeof row.recipe_data === 'object' && row.recipe_data
-          ? ((row.recipe_data as any).title || '').toLowerCase() + ' ' + ((row.recipe_data as any).description || '').toLowerCase()
-          : '');
+      const ingredientNames = extractIngredientNames(row);
 
       let matchCount = 0;
       const matchedWords: string[] = [];
       for (const word of uniqueInputWords) {
-        if (ingredientMatches(word, ingredientNames, recipeText)) {
+        if (ingredientMatches(word, ingredientNames)) {
           matchCount++;
           matchedWords.push(word);
         }
       }
 
-      const totalRequired = ingredientNames.length;
+      const matchRatio = uniqueInputWords.length > 0 ? matchCount / uniqueInputWords.length : 0;
 
-      return { row, matchCount, matchedWords, totalRequired, ingredientNames };
+      return { row, matchCount, matchedWords, ingredientNames, matchRatio };
     });
 
     const rawCount = normalized.length;
-    const minForGood = Math.max(2, Math.ceil(rawCount * 0.5));
-    const minForPartial = Math.max(1, Math.ceil(rawCount * 0.25));
+    const minForGood = Math.max(1, Math.ceil(rawCount * 0.4));
+    const minForPartial = Math.max(1, Math.ceil(rawCount * 0.2));
 
     const goodMatches = scored
-      .filter(s => s.totalRequired > 0 && s.matchCount >= minForGood)
-      .sort((a, b) => b.matchCount - a.matchCount);
+      .filter(s => s.ingredientNames.length > 0 && s.matchCount >= minForGood)
+      .sort((a, b) => {
+        if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
+        return b.matchRatio - a.matchRatio;
+      });
 
     const partialMatches = scored
-      .filter(s => s.totalRequired > 0 && s.matchCount >= minForPartial && s.matchCount < minForGood)
+      .filter(s => s.ingredientNames.length > 0 && s.matchCount >= minForPartial && s.matchCount < minForGood)
       .sort((a, b) => b.matchCount - a.matchCount);
 
-    console.log('[CACHE] Input:', normalized.join(', '), '| rawCount:', rawCount, '| minForGood:', minForGood, '| minForPartial:', minForPartial);
-    console.log('[CACHE] Good matches:', goodMatches.length, '| Partial matches:', partialMatches.length);
+    console.log('[CACHE] Input:', normalized.join(', '), '| words:', uniqueInputWords.join(', '), '| rawCount:', rawCount, '| minGood:', minForGood, '| minPartial:', minForPartial);
+    console.log('[CACHE] Good:', goodMatches.length, '| Partial:', partialMatches.length);
 
     if (goodMatches.length > 0) {
-      console.log('[CACHE] Top good match:', (goodMatches[0].row as any).title || goodMatches[0].row.recipe_id,
-        '| matched:', goodMatches[0].matchedWords.join(','), '| recipe ingredients:', goodMatches[0].ingredientNames.join(','));
+      const top = goodMatches[0];
+      const topData = typeof top.row.recipe_data === 'object' ? top.row.recipe_data : {};
+      console.log('[CACHE] Top good:', (topData as any).title || top.row.recipe_id,
+        '| matched:', top.matchedWords.join(','),
+        '| recipe ingredients:', top.ingredientNames.slice(0, 8).join(','));
     }
 
     const collected: CachedRecipe[] = [];
@@ -182,7 +203,7 @@ export async function getCachedRecipesByIngredients(
       }
     }
 
-    console.log('[CACHE] Returning', collected.length, 'cached recipes for ingredients:', normalized.join(', '));
+    console.log('[CACHE] Returning', collected.length, 'cached recipes');
     return collected;
   } catch (err) {
     console.error('[CACHE] Error:', err);
@@ -217,40 +238,21 @@ export async function saveRecipesToCache(recipes: any[], language: string = 'en'
   const rows = recipes.map((recipe) => {
     const { source, language: lang, ...rest } = recipe;
     const recipeId = `cache_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const recipeData = {
-      ...rest,
-      id: recipeId,
-    };
+    const recipeData = { ...rest, id: recipeId };
 
     const ingredientNames = (recipeData.ingredients || [])
       .map((i: any) => typeof i === 'string' ? i.toLowerCase().trim() : (i.name || '').toLowerCase().trim())
       .filter(Boolean);
 
-    const extraIngredients = (recipeData.required_extra_ingredients || [])
-      .map((i: any) => typeof i === 'string' ? i.toLowerCase().trim() : '')
-      .filter(Boolean);
-
     return {
       recipe_id: recipeId,
-      title: recipeData.title || 'Untitled',
-      cuisine: recipeData.cuisine || 'International',
-      difficulty: recipeData.difficulty || 'Medium',
-      servings: recipeData.servings || 2,
-      prep_minutes: recipeData.prep_minutes || 10,
-      cook_minutes: recipeData.cook_minutes || 20,
-      required_ingredients: ingredientNames,
-      optional_ingredients: extraIngredients,
       recipe_data: recipeData,
+      required_ingredients: ingredientNames,
     };
   });
 
-  console.log('[CACHE-SAVE] Inserting', rows.length, 'recipes to', table, ':', rows.map(r => r.title));
-  console.log('[CACHE-SAVE] Row structure sample:', JSON.stringify({
-    recipe_id: rows[0]?.recipe_id,
-    title: rows[0]?.title,
-    required_ingredients: rows[0]?.required_ingredients,
-    has_recipe_data: !!rows[0]?.recipe_data,
-  }));
+  console.log('[CACHE-SAVE] Inserting', rows.length, 'to', table, ':', rows.map(r => (r.recipe_data as any).title));
+  console.log('[CACHE-SAVE] Sample required_ingredients:', rows[0]?.required_ingredients);
 
   const { data, error } = await supabase
     .from(table)
@@ -258,26 +260,26 @@ export async function saveRecipesToCache(recipes: any[], language: string = 'en'
     .select();
 
   if (error) {
-    console.error('[CACHE-SAVE] FAILED:', error.message, '| code:', error.code, '| hint:', (error as any).hint, '| details:', error.details);
+    console.error('[CACHE-SAVE] Insert failed:', error.message, '| code:', error.code);
 
-    console.log('[CACHE-SAVE] Retrying with minimal columns...');
     const minimalRows = rows.map(r => ({
       recipe_id: r.recipe_id,
       recipe_data: r.recipe_data,
     }));
 
+    console.log('[CACHE-SAVE] Retrying without required_ingredients column...');
     const { data: retryData, error: retryError } = await supabase
       .from(table)
       .insert(minimalRows)
       .select();
 
     if (retryError) {
-      console.error('[CACHE-SAVE] RETRY ALSO FAILED:', retryError.message, '| code:', retryError.code);
+      console.error('[CACHE-SAVE] Retry failed:', retryError.message);
     } else {
-      console.log('[CACHE-SAVE] RETRY SUCCESS: inserted', retryData?.length, 'rows into', table);
+      console.log('[CACHE-SAVE] Retry OK:', retryData?.length, 'rows into', table);
     }
   } else {
-    console.log('[CACHE-SAVE] SUCCESS: inserted', data?.length, 'rows into', table);
+    console.log('[CACHE-SAVE] OK:', data?.length, 'rows into', table);
   }
 }
 
