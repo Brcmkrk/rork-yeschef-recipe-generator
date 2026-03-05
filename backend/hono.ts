@@ -230,6 +230,11 @@ function checkRateLimit(deviceId: string): boolean {
 }
 
 // ── Sanitizers ───────────────────────────────────────────────────────────────
+// Must match Swift's Recipe struct exactly:
+//   spices: [RecipeSpice]?       → null for preview (not filled yet)
+//   spices_common: [String]?     → null
+//   spices_optional: [String]?   → null
+//   isExpanded: Bool?            → false
 function sanitizePreview(r: any, language = "en") {
   return {
     id: r.id || `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -244,11 +249,14 @@ function sanitizePreview(r: any, language = "en") {
       quantity: String(i.quantity ?? ""),
       unit: String(i.unit ?? ""),
     })),
+    spices: null,           // Phase 1 — filled by expand endpoint
+    spices_common: null,
+    spices_optional: null,
     required_extra_ingredients: (r.required_extra_ingredients || []).map(String),
     steps: [],
-    spices: [],
-    source: "generated",
     language,
+    source: "generated",
+    isExpanded: false,
   };
 }
 
