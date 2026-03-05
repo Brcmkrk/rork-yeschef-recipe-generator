@@ -7,6 +7,7 @@ nonisolated enum OpenAIError: Error, Sendable, LocalizedError {
     case decodingError(String)
     case noAPIKey
     case rateLimited
+    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +17,16 @@ nonisolated enum OpenAIError: Error, Sendable, LocalizedError {
         case .decodingError(let msg): return "Failed to parse recipes: \(msg)"
         case .noAPIKey: return "API key not configured"
         case .rateLimited: return "Too many requests. Please wait a moment."
+        case .timeout: return "Request timed out. Please try again."
+        }
+    }
+
+    var isRetryable: Bool {
+        switch self {
+        case .invalidResponse, .decodingError, .rateLimited, .timeout, .apiError:
+            return true
+        case .invalidURL, .noAPIKey:
+            return false
         }
     }
 }
@@ -49,6 +60,9 @@ nonisolated struct BackendErrorResponse: Codable, Sendable {
 
 class OpenAIService {
     static let shared = OpenAIService()
+
+    private let maxRetries = 2
+    private let retryDelay: Duration = .seconds(2)
 
     private var backendBaseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
@@ -94,7 +108,15 @@ class OpenAIService {
         urlRequest.timeoutInterval = 90
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            throw OpenAIError.timeout
+        } catch let urlError as URLError where urlError.code == .networkConnectionLost || urlError.code == .notConnectedToInternet {
+            throw OpenAIError.apiError("Bağlantı hatası. İnternet bağlantınızı kontrol edin.")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
@@ -102,7 +124,8 @@ class OpenAIService {
         if httpResponse.statusCode == 429 { throw OpenAIError.rateLimited }
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? "Unknown"
-            throw OpenAIError.apiError("OpenAI error (\(httpResponse.statusCode)): \(body)")
+            print("[OpenAIService] Direct API error (\(httpResponse.statusCode)): \(body.prefix(300))")
+            throw OpenAIError.apiError("OpenAI error (\(httpResponse.statusCode))")
         }
 
         let chatResponse = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
@@ -121,36 +144,56 @@ class OpenAIService {
         extraCount: Int = 2,
         excludeTitles: [String] = []
     ) async throws -> RecipeResponse {
-        // Guard: need at least backend OR direct API key
         guard isBackendConfigured || hasDirectAPIKey else {
             throw OpenAIError.apiError("API ayarları eksik. Lütfen uygulamayı güncelleyin.")
         }
 
-        if isBackendConfigured {
+        var lastError: Error?
+
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                print("[OpenAIService] Preview retry #\(attempt)")
+                try await Task.sleep(for: retryDelay)
+            }
+
             do {
-                return try await generatePreviewsViaBackend(
-                    ingredients: ingredients, cuisines: cuisines, servings: servings,
-                    language: language, exactCount: exactCount, extraCount: extraCount,
-                    excludeTitles: excludeTitles
-                )
-            } catch {
-                print("[OpenAIService] Backend preview failed: \(error.localizedDescription)")
-                if hasDirectAPIKey {
+                if isBackendConfigured {
+                    do {
+                        return try await generatePreviewsViaBackend(
+                            ingredients: ingredients, cuisines: cuisines, servings: servings,
+                            language: language, exactCount: exactCount, extraCount: extraCount,
+                            excludeTitles: excludeTitles
+                        )
+                    } catch {
+                        print("[OpenAIService] Backend preview failed (attempt \(attempt)): \(error.localizedDescription)")
+                        if hasDirectAPIKey {
+                            return try await generatePreviewsDirectly(
+                                ingredients: ingredients, cuisines: cuisines, servings: servings,
+                                language: language, exactCount: exactCount, extraCount: extraCount,
+                                excludeTitles: excludeTitles
+                            )
+                        }
+                        throw error
+                    }
+                } else {
                     return try await generatePreviewsDirectly(
                         ingredients: ingredients, cuisines: cuisines, servings: servings,
                         language: language, exactCount: exactCount, extraCount: extraCount,
                         excludeTitles: excludeTitles
                     )
                 }
-                throw error
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as OpenAIError where error.isRetryable {
+                lastError = error
+                continue
+            } catch {
+                lastError = error
+                continue
             }
         }
-        // Backend not configured — use direct API
-        return try await generatePreviewsDirectly(
-            ingredients: ingredients, cuisines: cuisines, servings: servings,
-            language: language, exactCount: exactCount, extraCount: extraCount,
-            excludeTitles: excludeTitles
-        )
+
+        throw lastError ?? OpenAIError.apiError("Tarif oluşturulamadı, lütfen tekrar deneyin.")
     }
 
     private func generatePreviewsViaBackend(
@@ -177,7 +220,15 @@ class OpenAIService {
         urlRequest.timeoutInterval = 60
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            throw OpenAIError.timeout
+        } catch let urlError as URLError where urlError.code == .networkConnectionLost || urlError.code == .notConnectedToInternet {
+            throw OpenAIError.apiError("Bağlantı hatası. İnternet bağlantınızı kontrol edin.")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
@@ -198,7 +249,7 @@ class OpenAIService {
             return try JSONDecoder().decode(RecipeResponse.self, from: data)
         } catch {
             print("[OpenAIService] Decode error: \(error)")
-            throw OpenAIError.apiError("Server returned invalid data. Please try again.")
+            throw OpenAIError.decodingError("Server returned invalid data")
         }
     }
 
@@ -366,18 +417,37 @@ class OpenAIService {
     }
 
     func expandRecipes(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
-        if isBackendConfigured {
+        var lastError: Error?
+
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                print("[OpenAIService] Expand retry #\(attempt)")
+                try await Task.sleep(for: retryDelay)
+            }
+
             do {
-                return try await expandRecipesViaBackend(recipes, language: language)
-            } catch {
-                print("[OpenAIService] Backend expand failed: \(error.localizedDescription), trying direct...")
-                if hasDirectAPIKey {
+                if isBackendConfigured {
+                    do {
+                        return try await expandRecipesViaBackend(recipes, language: language)
+                    } catch {
+                        print("[OpenAIService] Backend expand failed (attempt \(attempt)): \(error.localizedDescription)")
+                        if hasDirectAPIKey {
+                            return try await expandRecipesDirectly(recipes, language: language)
+                        }
+                        throw error
+                    }
+                } else {
                     return try await expandRecipesDirectly(recipes, language: language)
                 }
-                throw error
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastError = error
+                continue
             }
         }
-        return try await expandRecipesDirectly(recipes, language: language)
+
+        throw lastError ?? OpenAIError.apiError("Failed to expand recipes.")
     }
 
     private func expandRecipesViaBackend(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
@@ -392,7 +462,15 @@ class OpenAIService {
         urlRequest.timeoutInterval = 60
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            throw OpenAIError.timeout
+        } catch let urlError as URLError where urlError.code == .networkConnectionLost || urlError.code == .notConnectedToInternet {
+            throw OpenAIError.apiError("Bağlantı hatası.")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse

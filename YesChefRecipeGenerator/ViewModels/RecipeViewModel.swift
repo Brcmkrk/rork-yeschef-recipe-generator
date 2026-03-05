@@ -177,7 +177,17 @@ class RecipeViewModel {
         } catch is CancellationError {
             isLoading = false
         } catch {
-            errorMessage = error.localizedDescription
+            let msg = error.localizedDescription
+            print("[RecipeVM] Generate error: \(msg)")
+            if msg.contains("timed out") || msg.contains("timeout") {
+                errorMessage = language == "tr" ? "İstek zaman aşımına uğradı. Tekrar deneyin." : "Request timed out. Please try again."
+            } else if msg.contains("Rate limit") || msg.contains("429") {
+                errorMessage = language == "tr" ? "Çok fazla istek. Lütfen biraz bekleyin." : "Too many requests. Please wait a moment."
+            } else if msg.contains("Bağlantı") || msg.contains("internet") || msg.contains("network") {
+                errorMessage = language == "tr" ? "Bağlantı hatası. İnternet bağlantınızı kontrol edin." : "Connection error. Check your internet."
+            } else {
+                errorMessage = language == "tr" ? "Tarif oluşturulamadı. Tekrar deneyin." : "Could not generate recipes. Please try again."
+            }
             isLoading = false
         }
     }
