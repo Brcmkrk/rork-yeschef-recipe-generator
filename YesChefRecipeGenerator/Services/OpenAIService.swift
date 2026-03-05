@@ -260,6 +260,7 @@ class OpenAIService {
             - Tam olarak \(exactCount) exact_match_recipes ve \(extraCount) extra_ingredient_recipes döndür
             - exact_match_recipes: sadece kullanıcının malzemeleri + temel mutfak malzemeleri. required_extra_ingredients = []
             - extra_ingredient_recipes: kullanıcı malzemeleri + required_extra_ingredients'te 2-4 ek malzeme
+            - HER ZAMAN tarif oluştur. Malzemeler ne olursa olsun yaratıcı ol ve bir tarif bul. ASLA boş dizi döndürme.
             - HER ŞEY TÜRKÇE OLMALI\(bannedList)
             """
         } else {
@@ -290,6 +291,7 @@ class OpenAIService {
             - Return exactly \(exactCount) exact_match_recipes and \(extraCount) extra_ingredient_recipes
             - exact_match_recipes: use only user's ingredients + basic pantry items. required_extra_ingredients = []
             - extra_ingredient_recipes: user ingredients + 2-4 extra ingredients in required_extra_ingredients
+            - ALWAYS generate recipes no matter what ingredients are given. Be creative. NEVER return empty arrays.
             - All content in English\(bannedList)
             """
         }

@@ -141,6 +141,8 @@ class RecipeViewModel {
         await generatePreviews(excludeTitles: previousRecipeTitles)
     }
 
+    private let maxRetries: Int = 3
+
     func generatePreviews(excludeTitles: [String] = []) async {
         guard canGenerate else { return }
 
@@ -152,41 +154,58 @@ class RecipeViewModel {
         isExpanding = false
         errorMessage = nil
 
-        do {
-            let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
+        let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
 
-            let response = try await OpenAIService.shared.generatePreviews(
-                ingredients: ingredientsList,
-                cuisines: cuisineNames,
-                servings: servings,
-                language: language,
-                exactCount: exactMatchCount,
-                extraCount: extraIngredientCount,
-                excludeTitles: excludeTitles
-            )
+        for attempt in 1...maxRetries {
+            do {
+                let response = try await OpenAIService.shared.generatePreviews(
+                    ingredients: ingredientsList,
+                    cuisines: cuisineNames,
+                    servings: servings,
+                    language: language,
+                    exactCount: exactMatchCount,
+                    extraCount: extraIngredientCount,
+                    excludeTitles: excludeTitles
+                )
 
-            exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
-            extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
+                let exact = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
+                let extra = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
-            isLoading = false
+                if exact.isEmpty && extra.isEmpty {
+                    print("[RecipeVM] Attempt \(attempt)/\(maxRetries): empty results, retrying...")
+                    if attempt < maxRetries {
+                        try await Task.sleep(for: .seconds(1))
+                        continue
+                    }
+                    isLoading = false
+                    errorMessage = language == "tr"
+                        ? "Tarif oluşturulurken bir sorun oluştu. Lütfen tekrar deneyin."
+                        : "Something went wrong generating recipes. Please try again."
+                    return
+                }
 
-            print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
+                exactMatchRecipes = Array(exact)
+                extraIngredientRecipes = Array(extra)
+                isLoading = false
 
-            guard !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else {
-                print("[RecipeVM] Empty recipes after decode. Raw exact: \(response.exact_match_recipes.count), raw extra: \(response.extra_ingredient_recipes.count)")
-                errorMessage = language == "tr"
-                    ? "Tarif oluşturulamadı. Lütfen farklı malzemeler veya mutfak seçimi deneyin."
-                    : "No recipes were generated. Please try different ingredients."
+                print("[RecipeVM] Previews loaded (attempt \(attempt)): \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
+
+                hasResults = true
+                expandRecipesInBackground()
+                return
+            } catch is CancellationError {
+                isLoading = false
+                return
+            } catch {
+                print("[RecipeVM] Attempt \(attempt)/\(maxRetries) error: \(error.localizedDescription)")
+                if attempt < maxRetries {
+                    try? await Task.sleep(for: .seconds(1))
+                    continue
+                }
+                errorMessage = error.localizedDescription
+                isLoading = false
                 return
             }
-
-            hasResults = true
-            expandRecipesInBackground()
-        } catch is CancellationError {
-            isLoading = false
-        } catch {
-            errorMessage = error.localizedDescription
-            isLoading = false
         }
     }
 

@@ -104,6 +104,7 @@ Kurallar:
 - TAM OLARAK ${exactCount} exact_match_recipes ve ${extraCount} extra_ingredient_recipes döndür
 - exact_match: SADECE kullanıcı malzemeleri + temel mutfak (tuz, yağ, su). required_extra_ingredients = []
 - extra_ingredient: kullanıcı malzemeleri + required_extra_ingredients'te 2-4 YENİ malzeme (asla boş olma)
+- HER ZAMAN tarif oluştur. Malzemeler ne olursa olsun yaratıcı ol ve bir tarif bul. ASLA boş dizi döndürme.
 - HER ŞEY TÜRKÇE${banned}`;
   } else {
     return `You are a professional chef. Return ONLY valid JSON. This is a PREVIEW request — do NOT include "steps" or "spices".
@@ -128,6 +129,7 @@ Rules:
 - Return EXACTLY ${exactCount} exact_match_recipes and ${extraCount} extra_ingredient_recipes
 - exact_match: user's ingredients + basic pantry only (salt, oil, water). required_extra_ingredients = []
 - extra_ingredient: user ingredients + 2-4 NEW ingredients in required_extra_ingredients (never empty)
+- ALWAYS generate recipes no matter what ingredients are given. Be creative. NEVER return empty arrays.
 - All content in English${banned}`;
   }
 }
