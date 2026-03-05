@@ -61,8 +61,8 @@ nonisolated struct BackendErrorResponse: Codable, Sendable {
 class OpenAIService {
     static let shared = OpenAIService()
 
-    private let maxRetries = 2
-    private let retryDelay: Duration = .seconds(2)
+    private let maxRetries = 1
+    private let retryDelay: Duration = .seconds(1)
 
     private var backendBaseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
@@ -105,7 +105,7 @@ class OpenAIService {
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 90
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let data: Data
@@ -186,10 +186,10 @@ class OpenAIService {
                 throw CancellationError()
             } catch let error as OpenAIError where error.isRetryable {
                 lastError = error
+                print("[OpenAIService] Retryable error (attempt \(attempt)): \(error.localizedDescription ?? "")")
                 continue
             } catch {
-                lastError = error
-                continue
+                throw error
             }
         }
 
@@ -217,8 +217,10 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 60
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        print("[OpenAIService] Preview request to: \(urlString)")
 
         let data: Data
         let response: URLResponse
@@ -441,9 +443,12 @@ class OpenAIService {
                 }
             } catch is CancellationError {
                 throw CancellationError()
-            } catch {
+            } catch let error as OpenAIError where error.isRetryable {
                 lastError = error
+                print("[OpenAIService] Expand retryable error (attempt \(attempt)): \(error.localizedDescription ?? "")")
                 continue
+            } catch {
+                throw error
             }
         }
 
@@ -459,8 +464,10 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 60
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        print("[OpenAIService] Expand request to: \(urlString)")
 
         let data: Data
         let response: URLResponse
@@ -618,7 +625,7 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 60
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
