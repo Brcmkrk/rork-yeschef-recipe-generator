@@ -156,11 +156,13 @@ class RecipeViewModel {
             exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
-            let cacheInfo = response._cache
-            cachedCount = cacheInfo?.cached_count ?? 0
+            let allRecipes = exactMatchRecipes + extraIngredientRecipes
+            let sourceBasedCount = allRecipes.filter { $0.source == "cached" }.count
+            let cacheInfoCount = response._cache?.cached_count ?? 0
+            cachedCount = max(sourceBasedCount, cacheInfoCount)
             hasResults = true
 
-            print("[RecipeVM] Result: \(cachedCount) from cache, \(cacheInfo?.fresh_count ?? 0) from AI")
+            print("[RecipeVM] Result: cachedCount=\(cachedCount) (source-based=\(sourceBasedCount), _cache=\(cacheInfoCount)), total=\(allRecipes.count)")
         } catch is CancellationError {
             // cancelled
         } catch {
