@@ -6,7 +6,7 @@ import {
   getPopularRecipes,
   saveRecipesToCache,
 } from "../../lib/cache";
-import { buildSystemPrompt, buildUserPrompt } from "../../lib/prompts";
+import { buildPreviewSystemPrompt, buildPreviewUserPrompt } from "../../lib/prompts";
 
 const openai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -82,8 +82,8 @@ export const recipeRouter = createTRPCRouter({
         ...usedCached.map((r: any) => r.title),
       ];
 
-      const systemPrompt = buildSystemPrompt(input.language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
-      const userPrompt = buildUserPrompt(
+      const systemPrompt = buildPreviewSystemPrompt(input.language, aiExactNeeded, aiExtraNeeded, allExcludeTitles);
+      const userPrompt = buildPreviewUserPrompt(
         input.ingredients, input.cuisines, input.servings, input.language,
         aiTotal, allExcludeTitles
       );
