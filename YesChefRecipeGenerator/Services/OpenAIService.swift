@@ -121,6 +121,11 @@ class OpenAIService {
         extraCount: Int = 2,
         excludeTitles: [String] = []
     ) async throws -> RecipeResponse {
+        // Guard: need at least backend OR direct API key
+        guard isBackendConfigured || hasDirectAPIKey else {
+            throw OpenAIError.apiError("API ayarları eksik. Lütfen uygulamayı güncelleyin.")
+        }
+
         if isBackendConfigured {
             do {
                 return try await generatePreviewsViaBackend(
@@ -129,7 +134,7 @@ class OpenAIService {
                     excludeTitles: excludeTitles
                 )
             } catch {
-                print("[OpenAIService] Backend preview failed: \(error.localizedDescription), trying direct...")
+                print("[OpenAIService] Backend preview failed: \(error.localizedDescription)")
                 if hasDirectAPIKey {
                     return try await generatePreviewsDirectly(
                         ingredients: ingredients, cuisines: cuisines, servings: servings,
@@ -140,6 +145,7 @@ class OpenAIService {
                 throw error
             }
         }
+        // Backend not configured — use direct API
         return try await generatePreviewsDirectly(
             ingredients: ingredients, cuisines: cuisines, servings: servings,
             language: language, exactCount: exactCount, extraCount: extraCount,
@@ -317,36 +323,13 @@ class OpenAIService {
             throw OpenAIError.decodingError("Could not convert to data")
         }
 
-        nonisolated struct RawPreviewResponse: Codable, Sendable {
-            let exact_match_recipes: [RawRecipe]?
-            let extra_ingredient_recipes: [RawRecipe]?
-        }
-
-        nonisolated struct RawRecipe: Codable, Sendable {
-            let id: String?
-            let title: String?
-            let description: String?
-            let calories: String?
-            let cuisine: String?
-            let difficulty: String?
-            let servings: Int?
-            let ingredients: [RawIngredient]?
-            let required_extra_ingredients: [String]?
-        }
-
-        nonisolated struct RawIngredient: Codable, Sendable {
-            let name: String?
-            let quantity: String?
-            let unit: String?
-        }
-
-        let parsed: RawPreviewResponse
+        let parsed: DirectPreviewResponse
         do {
-            parsed = try JSONDecoder().decode(RawPreviewResponse.self, from: jsonData)
+            parsed = try JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData)
         } catch {
             print("[OpenAIService] Direct preview decode error: \(error)")
-            print("[OpenAIService] Raw content: \(cleaned.prefix(500))")
-            throw OpenAIError.apiError("Failed to parse AI response. Please try again.")
+            print("[OpenAIService] Raw JSON (first 500): \(cleaned.prefix(500))")
+            throw OpenAIError.apiError("Tarif oluşturulamadı, lütfen tekrar deneyin.")
         }
 
         func toRecipe(_ r: RawRecipe) -> Recipe {
@@ -649,3 +632,28 @@ nonisolated struct OpenAIChatChoice: Codable, Sendable {
 nonisolated struct OpenAIChatResponse: Codable, Sendable {
     let choices: [OpenAIChatChoice]
 }
+
+// ── Private helper structs for generatePreviewsDirectly ──────────────────────
+nonisolated struct DirectPreviewResponse: Codable, Sendable {
+    let exact_match_recipes: [RawRecipe]?
+    let extra_ingredient_recipes: [RawRecipe]?
+}
+
+nonisolated struct RawRecipe: Codable, Sendable {
+    let id: String?
+    let title: String?
+    let description: String?
+    let calories: String?
+    let cuisine: String?
+    let difficulty: String?
+    let servings: Int?
+    let ingredients: [RawIngredient]?
+    let required_extra_ingredients: [String]?
+}
+
+nonisolated struct RawIngredient: Codable, Sendable {
+    let name: String?
+    let quantity: String?
+    let unit: String?
+}
+
