@@ -169,24 +169,42 @@ struct RecipeDetailView: View {
     }
 
     private var loadingDetailsCard: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .controlSize(.large)
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(.orange.opacity(0.08))
+                    .frame(width: 80, height: 80)
 
-            Text(lang.t("Preparing detailed steps...", "Detaylı adımlar hazırlanıyor..."))
-                .font(.system(.subheadline, design: .rounded, weight: .medium))
+                Circle()
+                    .fill(.orange.opacity(0.04))
+                    .frame(width: 100, height: 100)
+
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.orange)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
+
+            VStack(spacing: 8) {
+                Text(lang.t("Your recipe is being prepared", "Tarifiniz hazırlanıyor"))
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Text(lang.t(
+                    "The chef is writing out the detailed steps for you",
+                    "Şef sizin için detaylı adımları yazıyor"
+                ))
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            }
 
-            Text(lang.t(
-                "The chef is writing out the full recipe for you",
-                "Şef sizin için detaylı tarifi yazıyor"
-            ))
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-            .multilineTextAlignment(.center)
+            ProgressView()
+                .controlSize(.regular)
+                .tint(.orange)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, 48)
         .padding(.horizontal, 18)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(.rect(cornerRadius: 18))

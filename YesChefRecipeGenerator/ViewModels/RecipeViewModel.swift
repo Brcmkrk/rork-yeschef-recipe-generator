@@ -15,6 +15,7 @@ class RecipeViewModel {
     var hasResults: Bool = false
     private var generationTask: Task<Void, Never>?
     private var expandTask: Task<Void, Never>?
+    private var expandQueue: [String] = []
     private var previousRecipeTitles: [String] = []
 
     var ingredientsList: [String] {
@@ -180,39 +181,66 @@ class RecipeViewModel {
         }
     }
 
+    func prioritizeRecipe(id: String) {
+        guard !expandQueue.isEmpty else { return }
+        guard let idx = expandQueue.firstIndex(of: id) else { return }
+        expandQueue.remove(at: idx)
+        expandQueue.insert(id, at: 0)
+        print("[RecipeVM] Prioritized recipe: \(id)")
+    }
+
     private func expandRecipesInBackground() {
         expandTask?.cancel()
 
         let allRecipes = exactMatchRecipes + extraIngredientRecipes
         guard !allRecipes.isEmpty else { return }
 
+        expandQueue = allRecipes.map { $0.id }
         isExpanding = true
 
         expandTask = Task {
-            do {
-                let expanded = try await OpenAIService.shared.expandRecipes(allRecipes, language: language)
+            while !expandQueue.isEmpty {
+                guard !Task.isCancelled else { break }
 
-                guard !Task.isCancelled else { return }
-
-                for detail in expanded {
-                    if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
-                        exactMatchRecipes[idx] = exactMatchRecipes[idx].applyExpansion(
-                            steps: detail.steps,
-                            spices: detail.spices ?? []
-                        )
-                    } else if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == detail.id }) {
-                        extraIngredientRecipes[idx] = extraIngredientRecipes[idx].applyExpansion(
-                            steps: detail.steps,
-                            spices: detail.spices ?? []
-                        )
-                    }
+                let nextId = expandQueue[0]
+                let allCurrent = exactMatchRecipes + extraIngredientRecipes
+                guard let recipe = allCurrent.first(where: { $0.id == nextId }) else {
+                    expandQueue.removeFirst()
+                    continue
                 }
 
-                print("[RecipeVM] Recipes expanded: \(expanded.count)")
-            } catch is CancellationError {
-                // cancelled
-            } catch {
-                print("[RecipeVM] Expand error: \(error.localizedDescription)")
+                if recipe.isFullyLoaded {
+                    expandQueue.removeFirst()
+                    continue
+                }
+
+                do {
+                    let expanded = try await OpenAIService.shared.expandRecipes([recipe], language: language)
+
+                    guard !Task.isCancelled else { break }
+
+                    for detail in expanded {
+                        if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
+                            exactMatchRecipes[idx] = exactMatchRecipes[idx].applyExpansion(
+                                steps: detail.steps,
+                                spices: detail.spices ?? []
+                            )
+                        } else if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == detail.id }) {
+                            extraIngredientRecipes[idx] = extraIngredientRecipes[idx].applyExpansion(
+                                steps: detail.steps,
+                                spices: detail.spices ?? []
+                            )
+                        }
+                    }
+
+                    print("[RecipeVM] Expanded recipe: \(nextId)")
+                } catch is CancellationError {
+                    break
+                } catch {
+                    print("[RecipeVM] Expand error for \(nextId): \(error.localizedDescription)")
+                }
+
+                expandQueue.removeFirst()
             }
 
             isExpanding = false

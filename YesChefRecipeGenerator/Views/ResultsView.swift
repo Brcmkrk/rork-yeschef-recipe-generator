@@ -147,6 +147,9 @@ struct ResultsView: View {
                 HStack(spacing: 14) {
                     ForEach(Array(recipes.enumerated()), id: \.element.id) { index, recipe in
                         RecipeCardView(recipe: recipe) {
+                            if !recipe.isFullyLoaded {
+                                viewModel.prioritizeRecipe(id: recipe.id)
+                            }
                             selectedRecipeId = recipe.id
                         }
                         .opacity(appeared ? 1 : 0)
