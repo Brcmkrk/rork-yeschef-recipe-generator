@@ -155,7 +155,7 @@ class RecipeViewModel {
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
 
-            var response = try await OpenAIService.shared.generatePreviews(
+            let response = try await OpenAIService.shared.generatePreviews(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
                 servings: servings,
@@ -164,20 +164,6 @@ class RecipeViewModel {
                 extraCount: extraIngredientCount,
                 excludeTitles: excludeTitles
             )
-
-            if response.exact_match_recipes.isEmpty && response.extra_ingredient_recipes.isEmpty {
-                print("[RecipeVM] First attempt returned empty, retrying...")
-                try await Task.sleep(for: .seconds(1))
-                response = try await OpenAIService.shared.generatePreviews(
-                    ingredients: ingredientsList,
-                    cuisines: cuisineNames,
-                    servings: servings,
-                    language: language,
-                    exactCount: exactMatchCount,
-                    extraCount: extraIngredientCount,
-                    excludeTitles: excludeTitles
-                )
-            }
 
             exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }

@@ -128,27 +128,11 @@ class OpenAIService {
         }
 
         if isBackendConfigured {
-            do {
-                let result = try await generatePreviewsViaBackend(
-                    ingredients: ingredients, cuisines: cuisines, servings: servings,
-                    language: language, exactCount: exactCount, extraCount: extraCount,
-                    excludeTitles: excludeTitles
-                )
-                if !result.exact_match_recipes.isEmpty || !result.extra_ingredient_recipes.isEmpty {
-                    return result
-                }
-                print("[OpenAIService] Backend returned empty recipes, trying fallback...")
-            } catch {
-                print("[OpenAIService] Backend preview failed: \(error.localizedDescription)")
-            }
-            if hasDirectAPIKey {
-                print("[OpenAIService] Falling back to direct OpenAI...")
-                return try await generatePreviewsDirectly(
-                    ingredients: ingredients, cuisines: cuisines, servings: servings,
-                    language: language, exactCount: exactCount, extraCount: extraCount,
-                    excludeTitles: excludeTitles
-                )
-            }
+            return try await generatePreviewsViaBackend(
+                ingredients: ingredients, cuisines: cuisines, servings: servings,
+                language: language, exactCount: exactCount, extraCount: extraCount,
+                excludeTitles: excludeTitles
+            )
         }
         return try await generatePreviewsDirectly(
             ingredients: ingredients, cuisines: cuisines, servings: servings,
