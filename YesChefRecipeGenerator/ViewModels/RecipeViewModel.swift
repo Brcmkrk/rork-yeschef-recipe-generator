@@ -168,11 +168,16 @@ class RecipeViewModel {
             exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
-            hasResults = true
             isLoading = false
 
             print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
 
+            guard !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else {
+                errorMessage = "No recipes were generated. Please try different ingredients."
+                return
+            }
+
+            hasResults = true
             expandRecipesInBackground()
         } catch is CancellationError {
             isLoading = false

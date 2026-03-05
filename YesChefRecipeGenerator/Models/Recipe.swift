@@ -93,6 +93,25 @@ nonisolated struct RecipeResponse: Codable, Sendable {
     let exact_match_recipes: [Recipe]
     let extra_ingredient_recipes: [Recipe]
     let _cache: CacheInfo?
+
+    nonisolated enum CodingKeys: String, CodingKey {
+        case exact_match_recipes
+        case extra_ingredient_recipes
+        case _cache
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        exact_match_recipes = (try? container.decode([Recipe].self, forKey: .exact_match_recipes)) ?? []
+        extra_ingredient_recipes = (try? container.decode([Recipe].self, forKey: .extra_ingredient_recipes)) ?? []
+        _cache = try? container.decode(CacheInfo.self, forKey: ._cache)
+    }
+
+    init(exact_match_recipes: [Recipe], extra_ingredient_recipes: [Recipe], _cache: CacheInfo?) {
+        self.exact_match_recipes = exact_match_recipes
+        self.extra_ingredient_recipes = extra_ingredient_recipes
+        self._cache = _cache
+    }
 }
 
 nonisolated struct ExpandedRecipeDetail: Codable, Sendable {
