@@ -13,21 +13,17 @@ struct ResultsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 32) {
-                    let totalRecipes = viewModel.exactMatchRecipes.count + viewModel.extraIngredientRecipes.count
-                    if totalRecipes > 0 {
+                    if viewModel.isExpanding {
                         HStack(spacing: 8) {
-                            Image(systemName: "archivebox.fill")
-                                .font(.caption)
-                                .foregroundStyle(.cyan)
-                            Text(lang.t(
-                                "\(viewModel.cachedCount)/\(totalRecipes) from cache",
-                                "\(viewModel.cachedCount)/\(totalRecipes) önbellekten"
-                            ))
-                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(lang.t("Preparing full recipes...", "Detaylı tarifler hazırlanıyor..."))
+                                .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(.secondary)
                             Spacer()
                         }
                         .padding(.horizontal, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     if !viewModel.exactMatchRecipes.isEmpty {
@@ -111,7 +107,7 @@ struct ResultsView: View {
             )) {
                 if let id = selectedRecipeId,
                    let recipe = (viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes).first(where: { $0.id == id }) {
-                    RecipeDetailView(recipe: recipe, viewModel: viewModel) {
+                    RecipeDetailView(recipe: recipe, viewModel: viewModel, isExpanding: viewModel.isExpanding && !recipe.isFullyLoaded) {
                         dismiss()
                     }
                 }
@@ -214,18 +210,9 @@ struct RecipeCardView: View {
 
                     Spacer()
 
-                    if let source = recipe.source {
-                        HStack(spacing: 3) {
-                            Image(systemName: source == "cached" ? "tray.full.fill" : "sparkle")
-                                .font(.system(size: 8))
-                            Text(source == "cached" ? "Cache" : "AI")
-                                .font(.system(.caption2, design: .rounded, weight: .bold))
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(source == "cached" ? Color.cyan.opacity(0.12) : Color.purple.opacity(0.12))
-                        .foregroundStyle(source == "cached" ? .cyan : .purple)
-                        .clipShape(.rect(cornerRadius: 5))
+                    if !recipe.isFullyLoaded {
+                        ProgressView()
+                            .controlSize(.mini)
                     }
                 }
 

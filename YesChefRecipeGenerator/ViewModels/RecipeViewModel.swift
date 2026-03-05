@@ -10,10 +10,11 @@ class RecipeViewModel {
     var exactMatchRecipes: [Recipe] = []
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
+    var isExpanding: Bool = false
     var errorMessage: String?
     var hasResults: Bool = false
-    var cachedCount: Int = 0
     private var generationTask: Task<Void, Never>?
+    private var expandTask: Task<Void, Never>?
     private var previousRecipeTitles: [String] = []
 
     var ingredientsList: [String] {
@@ -30,6 +31,11 @@ class RecipeViewModel {
     var language: String = "en"
     var isTranslating: Bool = false
     var translationError: String?
+
+    var allRecipesExpanded: Bool {
+        let all = exactMatchRecipes + extraIngredientRecipes
+        return !all.isEmpty && all.allSatisfy { $0.isFullyLoaded }
+    }
 
     func translateIfNeeded(to newLanguage: String) {
         language = newLanguage
@@ -120,17 +126,20 @@ class RecipeViewModel {
 
     func cancelGeneration() {
         generationTask?.cancel()
+        expandTask?.cancel()
         generationTask = nil
+        expandTask = nil
         isLoading = false
+        isExpanding = false
     }
 
     func refreshRecipes() async {
         let currentTitles = (exactMatchRecipes + extraIngredientRecipes).map { $0.title }
         previousRecipeTitles.append(contentsOf: currentTitles)
-        await generateRecipes(excludeTitles: previousRecipeTitles)
+        await generatePreviews(excludeTitles: previousRecipeTitles)
     }
 
-    func generateRecipes(excludeTitles: [String] = []) async {
+    func generatePreviews(excludeTitles: [String] = []) async {
         guard canGenerate else { return }
 
         if excludeTitles.isEmpty {
@@ -138,12 +147,13 @@ class RecipeViewModel {
         }
 
         isLoading = true
+        isExpanding = false
         errorMessage = nil
 
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
 
-            let response = try await OpenAIService.shared.generateRecipes(
+            let response = try await OpenAIService.shared.generatePreviews(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
                 servings: servings,
@@ -156,20 +166,61 @@ class RecipeViewModel {
             exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
-            let allRecipes = exactMatchRecipes + extraIngredientRecipes
-            let sourceBasedCount = allRecipes.filter { $0.source == "cached" }.count
-            let cacheInfoCount = response._cache?.cached_count ?? 0
-            cachedCount = max(sourceBasedCount, cacheInfoCount)
             hasResults = true
+            isLoading = false
 
-            print("[RecipeVM] Result: cachedCount=\(cachedCount) (source-based=\(sourceBasedCount), _cache=\(cacheInfoCount)), total=\(allRecipes.count)")
+            print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
+
+            expandRecipesInBackground()
         } catch is CancellationError {
-            // cancelled
+            isLoading = false
         } catch {
             errorMessage = error.localizedDescription
+            isLoading = false
         }
+    }
 
-        isLoading = false
+    private func expandRecipesInBackground() {
+        expandTask?.cancel()
+
+        let allRecipes = exactMatchRecipes + extraIngredientRecipes
+        guard !allRecipes.isEmpty else { return }
+
+        isExpanding = true
+
+        expandTask = Task {
+            do {
+                let expanded = try await OpenAIService.shared.expandRecipes(allRecipes, language: language)
+
+                guard !Task.isCancelled else { return }
+
+                for detail in expanded {
+                    if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
+                        exactMatchRecipes[idx] = exactMatchRecipes[idx].applyExpansion(
+                            steps: detail.steps,
+                            spices: detail.spices ?? []
+                        )
+                    } else if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == detail.id }) {
+                        extraIngredientRecipes[idx] = extraIngredientRecipes[idx].applyExpansion(
+                            steps: detail.steps,
+                            spices: detail.spices ?? []
+                        )
+                    }
+                }
+
+                print("[RecipeVM] Recipes expanded: \(expanded.count)")
+            } catch is CancellationError {
+                // cancelled
+            } catch {
+                print("[RecipeVM] Expand error: \(error.localizedDescription)")
+            }
+
+            isExpanding = false
+        }
+    }
+
+    func generateRecipes(excludeTitles: [String] = []) async {
+        await generatePreviews(excludeTitles: excludeTitles)
     }
 
     func copyRecipeText(_ recipe: Recipe) -> String {

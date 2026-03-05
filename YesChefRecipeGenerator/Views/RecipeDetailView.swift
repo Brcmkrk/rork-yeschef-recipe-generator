@@ -3,6 +3,7 @@ import SwiftUI
 struct RecipeDetailView: View {
     let recipe: Recipe
     let viewModel: RecipeViewModel
+    var isExpanding: Bool = false
     var onFinishCooking: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
@@ -17,12 +18,17 @@ struct RecipeDetailView: View {
                     headerCard
                     quickStatsBar
                     ingredientsCard
-                    spicesCard
-                    if !recipe.required_extra_ingredients.isEmpty {
-                        extraIngredientsCard
+
+                    if recipe.isFullyLoaded {
+                        spicesCard
+                        if !recipe.required_extra_ingredients.isEmpty {
+                            extraIngredientsCard
+                        }
+                        stepsCard
+                        actionButtons
+                    } else {
+                        loadingDetailsCard
                     }
-                    stepsCard
-                    actionButtons
                 }
                 .padding(16)
             }
@@ -38,17 +44,19 @@ struct RecipeDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        UIPasteboard.general.string = viewModel.copyRecipeText(recipe)
-                        copied = true
-                        Task {
-                            try? await Task.sleep(for: .seconds(2))
-                            copied = false
+                    if recipe.isFullyLoaded {
+                        Button {
+                            UIPasteboard.general.string = viewModel.copyRecipeText(recipe)
+                            copied = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(2))
+                                copied = false
+                            }
+                        } label: {
+                            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                                .contentTransition(.symbolEffect(.replace))
+                                .foregroundStyle(.orange)
                         }
-                    } label: {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                            .contentTransition(.symbolEffect(.replace))
-                            .foregroundStyle(.orange)
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
@@ -156,6 +164,30 @@ struct RecipeDetailView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 18))
+    }
+
+    private var loadingDetailsCard: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.large)
+
+            Text(lang.t("Preparing detailed steps...", "Detaylı adımlar hazırlanıyor..."))
+                .font(.system(.subheadline, design: .rounded, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text(lang.t(
+                "The chef is writing out the full recipe for you",
+                "Şef sizin için detaylı tarifi yazıyor"
+            ))
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .padding(.horizontal, 18)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(.rect(cornerRadius: 18))
     }

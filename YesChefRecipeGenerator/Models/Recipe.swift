@@ -26,9 +26,14 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
     let spices_common: [String]?
     let spices_optional: [String]?
     let required_extra_ingredients: [String]
-    let steps: [String]
+    var steps: [String]
     var language: String?
     var source: String?
+    var isExpanded: Bool?
+
+    var isFullyLoaded: Bool {
+        isExpanded == true || !steps.isEmpty
+    }
 
     var allSpices: [RecipeSpice] {
         if let spices, !spices.isEmpty {
@@ -52,6 +57,30 @@ nonisolated struct Recipe: Codable, Sendable, Identifiable, Hashable {
         hasher.combine(id)
         hasher.combine(language)
     }
+
+    mutating func applyExpansion(steps: [String], spices: [RecipeSpice]) -> Recipe {
+        var updated = self
+        updated.steps = steps
+        updated.isExpanded = true
+        return Recipe(
+            id: id,
+            title: title,
+            calories: calories,
+            cuisine: cuisine,
+            difficulty: difficulty,
+            description: description,
+            servings: servings,
+            ingredients: ingredients,
+            spices: spices.isEmpty ? self.spices : spices,
+            spices_common: spices_common,
+            spices_optional: spices_optional,
+            required_extra_ingredients: required_extra_ingredients,
+            steps: steps,
+            language: language,
+            source: source,
+            isExpanded: true
+        )
+    }
 }
 
 nonisolated struct CacheInfo: Codable, Sendable {
@@ -64,4 +93,14 @@ nonisolated struct RecipeResponse: Codable, Sendable {
     let exact_match_recipes: [Recipe]
     let extra_ingredient_recipes: [Recipe]
     let _cache: CacheInfo?
+}
+
+nonisolated struct ExpandedRecipeDetail: Codable, Sendable {
+    let id: String
+    let steps: [String]
+    let spices: [RecipeSpice]?
+}
+
+nonisolated struct ExpandResponse: Codable, Sendable {
+    let recipes: [ExpandedRecipeDetail]
 }

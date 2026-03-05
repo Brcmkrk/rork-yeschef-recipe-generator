@@ -31,6 +31,12 @@ nonisolated struct GenerateRecipeRequest: Codable, Sendable {
     let deviceId: String
 }
 
+nonisolated struct ExpandRecipesRequest: Codable, Sendable {
+    let recipes: [Recipe]
+    let language: String
+    let deviceId: String
+}
+
 nonisolated struct TranslateRecipesRequest: Codable, Sendable {
     let recipes: [Recipe]
     let targetLanguage: String
@@ -56,6 +62,103 @@ class OpenAIService {
 
     private var isBackendConfigured: Bool {
         !backendBaseURL.isEmpty
+    }
+
+    func generatePreviews(
+        ingredients: [String],
+        cuisines: [String],
+        servings: Int,
+        language: String = "en",
+        exactCount: Int = 2,
+        extraCount: Int = 2,
+        excludeTitles: [String] = []
+    ) async throws -> RecipeResponse {
+        guard isBackendConfigured else {
+            return try await generateRecipes(
+                ingredients: ingredients,
+                cuisines: cuisines,
+                servings: servings,
+                language: language,
+                exactCount: exactCount,
+                extraCount: extraCount,
+                excludeTitles: excludeTitles
+            )
+        }
+
+        let urlString = "\(backendBaseURL)/generate-recipe-previews"
+        guard let url = URL(string: urlString) else { throw OpenAIError.invalidURL }
+
+        let requestBody = GenerateRecipeRequest(
+            ingredients: ingredients,
+            cuisines: cuisines,
+            servings: servings,
+            language: language,
+            exactCount: exactCount,
+            extraCount: extraCount,
+            excludeTitles: excludeTitles,
+            deviceId: deviceId
+        )
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 60
+        urlRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 429 {
+            throw OpenAIError.rateLimited
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
+                throw OpenAIError.apiError(errorResponse.error)
+            }
+            throw OpenAIError.apiError("Backend error (\(httpResponse.statusCode))")
+        }
+
+        return try JSONDecoder().decode(RecipeResponse.self, from: data)
+    }
+
+    func expandRecipes(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
+        guard isBackendConfigured else {
+            return []
+        }
+
+        let urlString = "\(backendBaseURL)/expand-recipes"
+        guard let url = URL(string: urlString) else { throw OpenAIError.invalidURL }
+
+        let requestBody = ExpandRecipesRequest(
+            recipes: recipes,
+            language: language,
+            deviceId: deviceId
+        )
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 120
+        urlRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
+                throw OpenAIError.apiError(errorResponse.error)
+            }
+            throw OpenAIError.apiError("Expand error (\(httpResponse.statusCode))")
+        }
+
+        return try JSONDecoder().decode(ExpandResponse.self, from: data).recipes
     }
 
     func generateRecipes(

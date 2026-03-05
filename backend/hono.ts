@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import OpenAI from "openai";
-import { buildSystemPrompt, buildUserPrompt } from "./lib/prompts";
+import { buildSystemPrompt, buildUserPrompt, buildPreviewSystemPrompt, buildExpandSystemPrompt, buildExpandUserPrompt } from "./lib/prompts";
 import {
   getCachedRecipesByIngredients,
   getPopularRecipes,
@@ -233,6 +233,138 @@ app.post("/generate-recipe", async (c) => {
     }
   } catch (err: any) {
     console.error('[GENERATE] Error:', err);
+    return c.json({ error: err.message || "Internal server error" }, 500);
+  }
+});
+
+app.post("/generate-recipe-previews", async (c) => {
+  try {
+    const body = await c.req.json();
+    const {
+      ingredients,
+      cuisines,
+      servings,
+      language = "en",
+      exactCount = 2,
+      extraCount = 2,
+      excludeTitles = [],
+      deviceId,
+    } = body;
+
+    if (!deviceId || !ingredients || !Array.isArray(ingredients)) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    if (!checkRateLimit(deviceId)) {
+      return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
+    }
+
+    const systemPrompt = buildPreviewSystemPrompt(language, exactCount, extraCount, excludeTitles);
+    const userPrompt = buildUserPrompt(ingredients, cuisines || [], servings || 2, language, exactCount + extraCount, excludeTitles);
+
+    console.log('[PREVIEW] Generating previews:', exactCount, 'exact +', extraCount, 'extra');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.8,
+      max_tokens: Math.min(1500, Math.max(800, (exactCount + extraCount) * 350)),
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return c.json({ error: "No response from AI" }, 500);
+    }
+
+    const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+
+      const sanitizePreview = (r: any) => ({
+        ...r,
+        required_extra_ingredients: r.required_extra_ingredients || [],
+        ingredients: (r.ingredients || []).map((i: any) => ({
+          ...i,
+          quantity: String(i.quantity ?? ""),
+          unit: String(i.unit ?? "")
+        })),
+        steps: [],
+        spices: [],
+        servings: Number(r.servings || 2),
+        source: "generated",
+      });
+
+      const exactRecipes = (parsed.exact_match_recipes || []).map(sanitizePreview).slice(0, exactCount);
+      const extraRecipes = (parsed.extra_ingredient_recipes || []).map(sanitizePreview).slice(0, extraCount);
+
+      console.log('[PREVIEW] Returning:', exactRecipes.length, 'exact +', extraRecipes.length, 'extra');
+
+      return c.json({
+        exact_match_recipes: exactRecipes,
+        extra_ingredient_recipes: extraRecipes,
+      });
+    } catch (parseErr) {
+      return c.json({ error: "Failed to parse AI response" }, 500);
+    }
+  } catch (err: any) {
+    console.error('[PREVIEW] Error:', err);
+    return c.json({ error: err.message || "Internal server error" }, 500);
+  }
+});
+
+app.post("/expand-recipes", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { recipes, language = "en", deviceId } = body;
+
+    if (!deviceId || !recipes || !Array.isArray(recipes)) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    if (!checkRateLimit(deviceId)) {
+      return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
+    }
+
+    const systemPrompt = buildExpandSystemPrompt(language);
+    const userPrompt = buildExpandUserPrompt(recipes, language);
+
+    console.log('[EXPAND] Expanding', recipes.length, 'recipes');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.8,
+      max_tokens: Math.min(4000, Math.max(1500, recipes.length * 800)),
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return c.json({ error: "No response from AI" }, 500);
+    }
+
+    const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      const expandedRecipes = parsed.recipes || [];
+
+      console.log('[EXPAND] Returned', expandedRecipes.length, 'expanded recipes');
+
+      return c.json({ recipes: expandedRecipes });
+    } catch (parseErr) {
+      return c.json({ error: "Failed to parse AI response" }, 500);
+    }
+  } catch (err: any) {
+    console.error('[EXPAND] Error:', err);
     return c.json({ error: err.message || "Internal server error" }, 500);
   }
 });
