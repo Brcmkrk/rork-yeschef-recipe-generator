@@ -136,7 +136,7 @@ export async function getCachedRecipesByIngredients(
         if (part.length >= 2 && !inputWords.includes(part)) inputWords.push(part);
       }
     }
-    const uniqueInputWords = [...new Set(inputWords)];
+    const uniqueInputWords = Array.from(new Set(inputWords));
 
     const scored = allCached.map(row => {
       const ingredientNames = extractIngredientNames(row);
