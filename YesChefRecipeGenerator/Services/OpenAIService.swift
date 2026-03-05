@@ -304,7 +304,7 @@ class OpenAIService {
                 (role: "user", content: userPrompt)
             ],
             temperature: 0.85,
-            maxTokens: min(3500, max(1500, totalCount * 600)),
+            maxTokens: 5500,
             jsonMode: true
         )
 
@@ -513,7 +513,7 @@ class OpenAIService {
                 (role: "user", content: userPrompt)
             ],
             temperature: 0.75,
-            maxTokens: 2000,
+            maxTokens: 4000,
             jsonMode: true
         )
 
