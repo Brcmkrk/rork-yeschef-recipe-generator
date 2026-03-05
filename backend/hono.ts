@@ -290,7 +290,7 @@ app.post("/generate-recipe-previews", async (c) => {
     const content = await callOpenAI(
       [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       0.85,
-      Math.min(1200, Math.max(600, (exactCount + extraCount) * 280)),
+      Math.min(3000, Math.max(1200, (exactCount + extraCount) * 500)),
       true
     );
 
@@ -336,7 +336,7 @@ app.post("/expand-recipes", async (c) => {
     const content = await callOpenAI(
       [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       0.75,
-      1200,
+      2000,
       true
     );
 
