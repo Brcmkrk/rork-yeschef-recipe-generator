@@ -123,32 +123,33 @@ class OpenAIService {
         extraCount: Int = 2,
         excludeTitles: [String] = []
     ) async throws -> RecipeResponse {
-        // Guard: need at least backend OR direct API key
         guard isBackendConfigured || hasDirectAPIKey else {
             throw OpenAIError.apiError("API ayarları eksik. Lütfen uygulamayı güncelleyin.")
         }
 
         if isBackendConfigured {
             do {
-                return try await generatePreviewsViaBackend(
+                let result = try await generatePreviewsViaBackend(
                     ingredients: ingredients, cuisines: cuisines, servings: servings,
                     language: language, exactCount: exactCount, extraCount: extraCount,
                     excludeTitles: excludeTitles
                 )
-            } catch {
-                print("[OpenAIService] Backend preview failed: \(error.localizedDescription), hasDirectKey=\(hasDirectAPIKey)")
-                if hasDirectAPIKey {
-                    print("[OpenAIService] Falling back to direct OpenAI...")
-                    return try await generatePreviewsDirectly(
-                        ingredients: ingredients, cuisines: cuisines, servings: servings,
-                        language: language, exactCount: exactCount, extraCount: extraCount,
-                        excludeTitles: excludeTitles
-                    )
+                if !result.exact_match_recipes.isEmpty || !result.extra_ingredient_recipes.isEmpty {
+                    return result
                 }
-                throw error
+                print("[OpenAIService] Backend returned empty recipes, trying fallback...")
+            } catch {
+                print("[OpenAIService] Backend preview failed: \(error.localizedDescription)")
+            }
+            if hasDirectAPIKey {
+                print("[OpenAIService] Falling back to direct OpenAI...")
+                return try await generatePreviewsDirectly(
+                    ingredients: ingredients, cuisines: cuisines, servings: servings,
+                    language: language, exactCount: exactCount, extraCount: extraCount,
+                    excludeTitles: excludeTitles
+                )
             }
         }
-        // Backend not configured — use direct API
         return try await generatePreviewsDirectly(
             ingredients: ingredients, cuisines: cuisines, servings: servings,
             language: language, exactCount: exactCount, extraCount: extraCount,

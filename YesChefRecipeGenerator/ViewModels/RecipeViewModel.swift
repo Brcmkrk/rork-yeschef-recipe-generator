@@ -155,7 +155,7 @@ class RecipeViewModel {
         do {
             let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
 
-            let response = try await OpenAIService.shared.generatePreviews(
+            var response = try await OpenAIService.shared.generatePreviews(
                 ingredients: ingredientsList,
                 cuisines: cuisineNames,
                 servings: servings,
@@ -165,6 +165,20 @@ class RecipeViewModel {
                 excludeTitles: excludeTitles
             )
 
+            if response.exact_match_recipes.isEmpty && response.extra_ingredient_recipes.isEmpty {
+                print("[RecipeVM] First attempt returned empty, retrying...")
+                try await Task.sleep(for: .seconds(1))
+                response = try await OpenAIService.shared.generatePreviews(
+                    ingredients: ingredientsList,
+                    cuisines: cuisineNames,
+                    servings: servings,
+                    language: language,
+                    exactCount: exactMatchCount,
+                    extraCount: extraIngredientCount,
+                    excludeTitles: excludeTitles
+                )
+            }
+
             exactMatchRecipes = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
             extraIngredientRecipes = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
@@ -173,7 +187,7 @@ class RecipeViewModel {
             print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
 
             guard !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else {
-                print("[RecipeVM] Empty recipes after decode. Raw exact: \(response.exact_match_recipes.count), raw extra: \(response.extra_ingredient_recipes.count)")
+                print("[RecipeVM] Empty recipes after decode and retry.")
                 errorMessage = language == "tr"
                     ? "Tarif oluşturulamadı. Lütfen farklı malzemeler veya mutfak seçimi deneyin."
                     : "No recipes were generated. Please try different ingredients."
