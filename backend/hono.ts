@@ -59,7 +59,7 @@ app.post("/generate-recipe", async (c) => {
     }
 
     const totalNeeded = exactCount + extraCount;
-    const maxCached = 2;
+    const maxCached = 3;
 
     let cachedRecipes: any[] = [];
     if (excludeTitles.length === 0) {
@@ -71,24 +71,39 @@ app.post("/generate-recipe", async (c) => {
 
     console.log('[GENERATE] Cache hit:', cachedCount, '/', maxCached);
 
-    const aiTotal = totalNeeded - cachedCount;
+    const aiTotal = Math.max(0, totalNeeded - cachedCount);
 
-    let aiExactNeeded: number;
-    let aiExtraNeeded: number;
+    if (aiTotal === 0) {
+      let finalExact: any[] = [];
+      let finalExtra: any[] = [];
+      const allCached = [...usedCached];
 
-    if (cachedCount >= 2) {
-      aiExactNeeded = Math.max(1, exactCount - 1);
-      aiExtraNeeded = aiTotal - aiExactNeeded;
-    } else if (cachedCount === 1) {
-      aiExactNeeded = Math.max(1, exactCount - 1);
-      aiExtraNeeded = aiTotal - aiExactNeeded;
-    } else {
-      aiExactNeeded = exactCount;
-      aiExtraNeeded = extraCount;
+      while (finalExact.length < exactCount && allCached.length > 0) {
+        finalExact.push(allCached.shift());
+      }
+      while (finalExtra.length < extraCount && allCached.length > 0) {
+        finalExtra.push(allCached.shift());
+      }
+
+      return c.json({
+        exact_match_recipes: finalExact,
+        extra_ingredient_recipes: finalExtra,
+        _cache: { hit: true, cached_count: cachedCount, fresh_count: 0 },
+      });
     }
 
-    if (aiExactNeeded < 0) aiExactNeeded = 0;
-    if (aiExtraNeeded < 0) aiExtraNeeded = 0;
+    let aiExactNeeded = exactCount;
+    let aiExtraNeeded = extraCount;
+
+    for (let i = 0; i < cachedCount; i++) {
+      if (aiExactNeeded >= aiExtraNeeded && aiExactNeeded > 0) {
+        aiExactNeeded--;
+      } else if (aiExtraNeeded > 0) {
+        aiExtraNeeded--;
+      } else if (aiExactNeeded > 0) {
+        aiExactNeeded--;
+      }
+    }
 
     const allExcludeTitles = [
       ...excludeTitles,
@@ -130,41 +145,51 @@ app.post("/generate-recipe", async (c) => {
     try {
       const parsed = JSON.parse(cleaned);
 
-      const freshExact = (parsed.exact_match_recipes || [])
-        .slice(0, aiExactNeeded)
-        .map((r: any) => ({ ...r, source: "generated" }));
-      const freshExtra = (parsed.extra_ingredient_recipes || [])
-        .slice(0, aiExtraNeeded)
-        .map((r: any) => ({ ...r, source: "generated" }));
-      const allFresh = [...freshExact, ...freshExtra];
+      const freshExactRaw = (parsed.exact_match_recipes || []).map((r: any) => ({ ...r, source: "generated" }));
+      const freshExtraRaw = (parsed.extra_ingredient_recipes || []).map((r: any) => ({ ...r, source: "generated" }));
+      const allFresh = [...freshExactRaw, ...freshExtraRaw];
 
-      console.log('[GENERATE] AI returned:', freshExact.length, 'exact +', freshExtra.length, 'extra');
+      console.log('[GENERATE] AI returned:', freshExactRaw.length, 'exact +', freshExtraRaw.length, 'extra');
 
       let finalExact: any[] = [];
       let finalExtra: any[] = [];
 
-      if (cachedCount >= 2) {
-        finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
-        finalExtra = [usedCached[1], ...(freshExtra.length > 0 ? freshExtra : freshExact.slice(1))].filter(Boolean).slice(0, extraCount);
-      } else if (cachedCount === 1) {
-        finalExact = [usedCached[0], freshExact[0]].filter(Boolean).slice(0, exactCount);
-        finalExtra = freshExtra.slice(0, extraCount);
-        if (finalExtra.length < extraCount) {
-          finalExtra = [...finalExtra, ...freshExact.slice(1)].slice(0, extraCount);
+      const allCached = [...usedCached];
+
+      while (finalExact.length < exactCount) {
+        if (freshExactRaw.length > 0) {
+          finalExact.push(freshExactRaw.shift());
+        } else if (allCached.length > 0) {
+          finalExact.push(allCached.shift());
+        } else if (freshExtraRaw.length > 0) {
+          finalExact.push(freshExtraRaw.shift());
+        } else {
+          break;
         }
-      } else {
-        finalExact = freshExact.slice(0, exactCount);
-        finalExtra = freshExtra.slice(0, extraCount);
       }
 
-      if (cachedCount <= 1) {
-        const allFinal = [...finalExact, ...finalExtra];
-        const shuffled = [...allFinal].sort(() => Math.random() - 0.5);
+      while (finalExtra.length < extraCount) {
+        if (freshExtraRaw.length > 0) {
+          finalExtra.push(freshExtraRaw.shift());
+        } else if (allCached.length > 0) {
+          finalExtra.push(allCached.shift());
+        } else if (freshExactRaw.length > 0) {
+          finalExtra.push(freshExactRaw.shift());
+        } else {
+          break;
+        }
+      }
+
+      const allFinal = [...finalExact, ...finalExtra];
+      const newlyGenerated = allFinal.filter(r => r.source === "generated");
+
+      if (newlyGenerated.length > 0) {
+        const shuffled = [...newlyGenerated].sort(() => Math.random() - 0.5);
         const toSave = shuffled.slice(0, 2);
-        console.log('[GENERATE] cachedCount=', cachedCount, '=> saving', toSave.length, 'recipes to cache (non-blocking), language:', language);
+        console.log('[GENERATE] newly generated=', newlyGenerated.length, '=> saving', toSave.length, 'recipes to cache (non-blocking), language:', language);
         saveRecipesToCache(toSave, language).catch(err => console.error('[GENERATE] Cache save error:', err));
       } else {
-        console.log('[GENERATE] cachedCount=', cachedCount, '=> skipping cache save');
+        console.log('[GENERATE] newly generated=0 => skipping cache save');
       }
 
       return c.json({
@@ -176,7 +201,7 @@ app.post("/generate-recipe", async (c) => {
           fresh_count: allFresh.length,
         },
       });
-    } catch {
+    } catch (parseErr) {
       return c.json({ error: "Failed to parse AI response" }, 500);
     }
   } catch (err: any) {
@@ -276,7 +301,7 @@ Respond with ONLY the translated JSON array. No markdown, no extra text.`;
     try {
       const parsed = JSON.parse(cleaned);
       return c.json(parsed);
-    } catch {
+    } catch (parseErr) {
       return c.json({ error: "Failed to parse translation response" }, 500);
     }
   } catch (err: any) {
