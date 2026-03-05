@@ -304,7 +304,7 @@ class OpenAIService {
                 (role: "user", content: userPrompt)
             ],
             temperature: 0.85,
-            maxTokens: min(1200, max(600, totalCount * 280)),
+            maxTokens: min(3000, max(1200, totalCount * 500)),
             jsonMode: true
         )
 
@@ -340,7 +340,14 @@ class OpenAIService {
             let unit: String?
         }
 
-        let parsed = try JSONDecoder().decode(RawPreviewResponse.self, from: jsonData)
+        let parsed: RawPreviewResponse
+        do {
+            parsed = try JSONDecoder().decode(RawPreviewResponse.self, from: jsonData)
+        } catch {
+            print("[OpenAIService] Direct preview decode error: \(error)")
+            print("[OpenAIService] Raw content: \(cleaned.prefix(500))")
+            throw OpenAIError.apiError("Failed to parse AI response. Please try again.")
+        }
 
         func toRecipe(_ r: RawRecipe) -> Recipe {
             Recipe(
@@ -519,7 +526,12 @@ class OpenAIService {
             throw OpenAIError.decodingError("Could not convert expand response to data")
         }
 
-        return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
+        do {
+            return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
+        } catch {
+            print("[OpenAIService] Direct expand decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse recipe details. Please try again.")
+        }
     }
 
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
@@ -604,7 +616,12 @@ class OpenAIService {
         guard let jsonData = cleaned.data(using: .utf8) else {
             throw OpenAIError.decodingError("Could not convert translation to data")
         }
-        return try JSONDecoder().decode([Recipe].self, from: jsonData)
+        do {
+            return try JSONDecoder().decode([Recipe].self, from: jsonData)
+        } catch {
+            print("[OpenAIService] Direct translate decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse translation. Please try again.")
+        }
     }
 }
 
