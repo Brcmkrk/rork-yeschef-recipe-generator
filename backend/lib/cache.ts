@@ -115,8 +115,7 @@ export async function getCachedRecipesByIngredients(
     const { data: allCached, error } = await supabase
       .from(table)
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(300);
+      .limit(500);
 
     if (error) {
       console.error('[CACHE] Query error:', error.message, '| code:', error.code);
@@ -157,27 +156,36 @@ export async function getCachedRecipesByIngredients(
     });
 
     const rawCount = normalized.length;
-    const minForGood = Math.max(1, Math.ceil(rawCount * 0.4));
-    const minForPartial = Math.max(1, Math.ceil(rawCount * 0.2));
+    // At least 1 ingredient must match. This allows even single-ingredient overlap.
+    const minMatch = 1;
 
     const goodMatches = scored
-      .filter(s => s.ingredientNames.length > 0 && s.matchCount >= minForGood)
+      .filter(s => s.ingredientNames.length > 0 && s.matchCount >= minMatch)
       .sort((a, b) => {
         if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
         return b.matchRatio - a.matchRatio;
       });
 
-    const partialMatches = scored
-      .filter(s => s.ingredientNames.length > 0 && s.matchCount >= minForPartial && s.matchCount < minForGood)
-      .sort((a, b) => b.matchCount - a.matchCount);
+    // Shuffle top candidates (among recipes with same top matchCount) to get variety
+    const topCount = goodMatches[0]?.matchCount ?? 0;
+    const topTier = goodMatches.filter(s => s.matchCount === topCount);
+    const restTier = goodMatches.filter(s => s.matchCount < topCount);
+    // Shuffle top tier for variety
+    for (let i = topTier.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [topTier[i], topTier[j]] = [topTier[j], topTier[i]];
+    }
+    const sorted = [...topTier, ...restTier];
 
-    console.log('[CACHE] Input:', normalized.join(', '), '| words:', uniqueInputWords.join(', '), '| rawCount:', rawCount, '| minGood:', minForGood, '| minPartial:', minForPartial);
-    console.log('[CACHE] Good:', goodMatches.length, '| Partial:', partialMatches.length);
+    const partialMatches: typeof scored = []; // kept for logging compatibility
 
-    if (goodMatches.length > 0) {
-      const top = goodMatches[0];
+    console.log('[CACHE] Input:', normalized.join(', '), '| words:', uniqueInputWords.join(', '), '| rawCount:', rawCount, '| minMatch:', minMatch);
+    console.log('[CACHE] Matches:', sorted.length, '(top matchCount:', topCount, ')');
+
+    if (sorted.length > 0) {
+      const top = sorted[0];
       const topData = typeof top.row.recipe_data === 'object' ? top.row.recipe_data : {};
-      console.log('[CACHE] Top good:', (topData as any).title || top.row.recipe_id,
+      console.log('[CACHE] Top match:', (topData as any).title || top.row.recipe_id,
         '| matched:', top.matchedWords.join(','),
         '| recipe ingredients:', top.ingredientNames.slice(0, 8).join(','));
     }
@@ -185,16 +193,7 @@ export async function getCachedRecipesByIngredients(
     const collected: CachedRecipe[] = [];
     const usedIds = new Set<string>();
 
-    for (const { row } of goodMatches) {
-      if (collected.length >= limit) break;
-      const recipe = rowToRecipe(row);
-      if (!usedIds.has(recipe.id)) {
-        collected.push(recipe);
-        usedIds.add(recipe.id);
-      }
-    }
-
-    for (const { row } of partialMatches) {
+    for (const { row } of sorted) {
       if (collected.length >= limit) break;
       const recipe = rowToRecipe(row);
       if (!usedIds.has(recipe.id)) {
