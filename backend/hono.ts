@@ -74,9 +74,22 @@ app.post("/generate-recipe", async (c) => {
     const aiTotal = Math.max(0, totalNeeded - cachedCount);
 
     if (aiTotal === 0) {
+      const sanitizeRecipe = (r: any, src: string) => ({
+        ...r,
+        source: src,
+        required_extra_ingredients: r.required_extra_ingredients || [],
+        ingredients: (r.ingredients || []).map((i: any) => ({
+          ...i,
+          quantity: String(i.quantity ?? ""),
+          unit: String(i.unit ?? "")
+        })),
+        spices: r.spices || [],
+        servings: Number(r.servings || 2),
+      });
+
       let finalExact: any[] = [];
       let finalExtra: any[] = [];
-      const allCached = [...usedCached];
+      const allCached = usedCached.map(r => sanitizeRecipe(r, "cached"));
 
       while (finalExact.length < exactCount && allCached.length > 0) {
         finalExact.push(allCached.shift());
@@ -146,8 +159,21 @@ app.post("/generate-recipe", async (c) => {
     try {
       const parsed = JSON.parse(cleaned);
 
-      const freshExactRaw = (parsed.exact_match_recipes || []).map((r: any) => ({ ...r, source: "generated" }));
-      const freshExtraRaw = (parsed.extra_ingredient_recipes || []).map((r: any) => ({ ...r, source: "generated" }));
+      const sanitizeRecipe = (r: any, src: string) => ({
+        ...r,
+        source: src,
+        required_extra_ingredients: r.required_extra_ingredients || [],
+        ingredients: (r.ingredients || []).map((i: any) => ({
+          ...i,
+          quantity: String(i.quantity ?? ""),
+          unit: String(i.unit ?? "")
+        })),
+        spices: r.spices || [],
+        servings: Number(r.servings || 2),
+      });
+
+      const freshExactRaw = (parsed.exact_match_recipes || []).map((r: any) => sanitizeRecipe(r, "generated"));
+      const freshExtraRaw = (parsed.extra_ingredient_recipes || []).map((r: any) => sanitizeRecipe(r, "generated"));
       const allFresh = [...freshExactRaw, ...freshExtraRaw];
 
       console.log('[GENERATE] AI returned:', freshExactRaw.length, 'exact +', freshExtraRaw.length, 'extra');
@@ -155,7 +181,7 @@ app.post("/generate-recipe", async (c) => {
       let finalExact: any[] = [];
       let finalExtra: any[] = [];
 
-      const allCached = [...usedCached];
+      const allCached = usedCached.map(r => sanitizeRecipe(r, "cached"));
 
       while (finalExact.length < exactCount) {
         if (freshExactRaw.length > 0) {

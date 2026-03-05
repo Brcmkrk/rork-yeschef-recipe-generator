@@ -177,12 +177,13 @@ class OpenAIService {
 
         let request = OpenAIChatRequest(
             model: "gpt-4o-mini",
+            response_format: OpenAIResponseFormat(type: "json_object"),
             messages: [
                 OpenAIChatMessage(role: "system", content: systemPrompt),
                 OpenAIChatMessage(role: "user", content: userPrompt)
             ],
-            temperature: 0.9,
-            max_tokens: 5000
+            temperature: 0.8,
+            max_tokens: min(2500, max(1500, (exactCount + extraCount) * 1200))
         )
 
         var urlRequest = URLRequest(url: url)
@@ -319,6 +320,7 @@ class OpenAIService {
 
         let request = OpenAIChatRequest(
             model: "gpt-4o-mini",
+            response_format: nil,
             messages: [
                 OpenAIChatMessage(role: "system", content: systemPrompt),
                 OpenAIChatMessage(role: "user", content: recipesString)
@@ -504,8 +506,13 @@ nonisolated struct OpenAIChatMessage: Codable, Sendable {
     let content: String
 }
 
+nonisolated struct OpenAIResponseFormat: Codable, Sendable {
+    let type: String
+}
+
 nonisolated struct OpenAIChatRequest: Codable, Sendable {
     let model: String
+    let response_format: OpenAIResponseFormat?
     let messages: [OpenAIChatMessage]
     let temperature: Double
     let max_tokens: Int
