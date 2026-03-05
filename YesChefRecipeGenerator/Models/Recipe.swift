@@ -98,7 +98,7 @@ nonisolated struct RecipeResponse: Codable, Sendable {
 nonisolated struct ExpandedRecipeDetail: Codable, Sendable {
     let id: String
     let steps: [String]
-    let spices: [RecipeSpice]?
+    let spices: [RecipeSpice]
 }
 
 nonisolated struct ExpandResponse: Codable, Sendable {

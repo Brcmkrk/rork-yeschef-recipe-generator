@@ -11,6 +11,7 @@ class RecipeViewModel {
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
     var isExpanding: Bool = false
+    var cachedCount: Int = 0
     var errorMessage: String?
     var hasResults: Bool = false
     private var generationTask: Task<Void, Never>?
@@ -223,12 +224,12 @@ class RecipeViewModel {
                         if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
                             exactMatchRecipes[idx] = exactMatchRecipes[idx].applyExpansion(
                                 steps: detail.steps,
-                                spices: detail.spices ?? []
+                                spices: detail.spices
                             )
                         } else if let idx = extraIngredientRecipes.firstIndex(where: { $0.id == detail.id }) {
                             extraIngredientRecipes[idx] = extraIngredientRecipes[idx].applyExpansion(
                                 steps: detail.steps,
-                                spices: detail.spices ?? []
+                                spices: detail.spices
                             )
                         }
                     }
