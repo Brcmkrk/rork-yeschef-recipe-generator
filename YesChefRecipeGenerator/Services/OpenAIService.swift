@@ -168,7 +168,7 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 30
+        urlRequest.timeoutInterval = 60
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
@@ -176,14 +176,24 @@ class OpenAIService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
+
+        let bodyString = String(data: data, encoding: .utf8) ?? ""
+        print("[OpenAIService] Preview response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
+
         if httpResponse.statusCode == 429 { throw OpenAIError.rateLimited }
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Backend error (\(httpResponse.statusCode))")
+            throw OpenAIError.apiError("Backend error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
         }
-        return try JSONDecoder().decode(RecipeResponse.self, from: data)
+
+        do {
+            return try JSONDecoder().decode(RecipeResponse.self, from: data)
+        } catch {
+            print("[OpenAIService] Decode error: \(error)")
+            throw OpenAIError.apiError("Server returned invalid data. Please try again.")
+        }
     }
 
     private func generatePreviewsDirectly(
@@ -389,7 +399,7 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 30
+        urlRequest.timeoutInterval = 60
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
@@ -397,13 +407,23 @@ class OpenAIService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
+
+        let bodyString = String(data: data, encoding: .utf8) ?? ""
+        print("[OpenAIService] Expand response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
+
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Expand error (\(httpResponse.statusCode))")
+            throw OpenAIError.apiError("Expand error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
         }
-        return try JSONDecoder().decode(ExpandResponse.self, from: data).recipes
+
+        do {
+            return try JSONDecoder().decode(ExpandResponse.self, from: data).recipes
+        } catch {
+            print("[OpenAIService] Expand decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse recipe details. Please try again.")
+        }
     }
 
     private func expandRecipesDirectly(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
@@ -525,7 +545,7 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 30
+        urlRequest.timeoutInterval = 60
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
@@ -533,17 +553,22 @@ class OpenAIService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
+
+        let bodyString = String(data: data, encoding: .utf8) ?? ""
+        print("[OpenAIService] Translate response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
+
         if httpResponse.statusCode == 429 { throw OpenAIError.rateLimited }
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Translation error (\(httpResponse.statusCode))")
+            throw OpenAIError.apiError("Translation error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
         }
         do {
             return try JSONDecoder().decode([Recipe].self, from: data)
         } catch {
-            throw OpenAIError.decodingError(error.localizedDescription)
+            print("[OpenAIService] Translate decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse translation. Please try again.")
         }
     }
 
