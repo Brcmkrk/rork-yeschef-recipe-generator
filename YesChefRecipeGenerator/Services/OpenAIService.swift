@@ -128,11 +128,23 @@ class OpenAIService {
         }
 
         if isBackendConfigured {
-            return try await generatePreviewsViaBackend(
-                ingredients: ingredients, cuisines: cuisines, servings: servings,
-                language: language, exactCount: exactCount, extraCount: extraCount,
-                excludeTitles: excludeTitles
-            )
+            do {
+                return try await generatePreviewsViaBackend(
+                    ingredients: ingredients, cuisines: cuisines, servings: servings,
+                    language: language, exactCount: exactCount, extraCount: extraCount,
+                    excludeTitles: excludeTitles
+                )
+            } catch {
+                print("[OpenAIService] Backend preview failed: \(error.localizedDescription), trying direct...")
+                if hasDirectAPIKey {
+                    return try await generatePreviewsDirectly(
+                        ingredients: ingredients, cuisines: cuisines, servings: servings,
+                        language: language, exactCount: exactCount, extraCount: extraCount,
+                        excludeTitles: excludeTitles
+                    )
+                }
+                throw error
+            }
         }
         return try await generatePreviewsDirectly(
             ingredients: ingredients, cuisines: cuisines, servings: servings,
@@ -180,7 +192,7 @@ class OpenAIService {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Backend error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
+            throw OpenAIError.apiError("Sunucu hatası (\(httpResponse.statusCode)). Lütfen tekrar deneyin.")
         }
 
         do {
@@ -192,7 +204,7 @@ class OpenAIService {
         } catch {
             print("[OpenAIService] Backend decode error: \(error)")
             print("[OpenAIService] Backend response body: \(bodyString.prefix(1000))")
-            throw OpenAIError.apiError("Server returned invalid data. Please try again.")
+            throw OpenAIError.apiError("Sunucu geçersiz veri döndürdü. Lütfen tekrar deneyin.")
         }
     }
 
@@ -410,7 +422,7 @@ class OpenAIService {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Expand error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
+            throw OpenAIError.apiError("Detay hatası (\(httpResponse.statusCode)). Lütfen tekrar deneyin.")
         }
 
         do {
@@ -562,7 +574,7 @@ class OpenAIService {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
             }
-            throw OpenAIError.apiError("Translation error (\(httpResponse.statusCode)): \(bodyString.prefix(200))")
+            throw OpenAIError.apiError("Çeviri hatası (\(httpResponse.statusCode)). Lütfen tekrar deneyin.")
         }
         do {
             return try JSONDecoder().decode([Recipe].self, from: data)
