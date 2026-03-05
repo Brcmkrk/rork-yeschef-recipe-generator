@@ -1,111 +1,7 @@
-export function buildSystemPrompt(
-  language: string,
-  exactCount: number,
-  extraCount: number,
-  excludeTitles: string[]
-): string {
-  const isTurkish = language === "tr";
-
-  if (isTurkish) {
-    return `Sen profesyonel bir şef ve tarif oluşturucusun. SADECE geçerli JSON ile yanıt vermelisin, markdown yok, ekstra metin yok, açıklama yok.
-
-TÜMÜ Türkçe olmalı — tarif başlıkları, açıklamalar, malzeme adları, birim adları, baharat adları, adımlar, zorluk seviyesi, mutfak adı — HER ŞEY TÜRKÇE.
-
-Tam olarak uyman gereken JSON şeması:
-{
-  "exact_match_recipes": [
-    {
-      "id": "unique_string",
-      "title": "Tarif Başlığı",
-      "calories": "300-400",
-      "cuisine": "İtalyan",
-      "difficulty": "Kolay|Orta|Zor",
-      "description": "Kısa 1-2 cümlelik açıklama",
-      "servings": 2,
-      "ingredients": [{"name": "tavuk", "quantity": "500", "unit": "g"}],
-      "spices": [
-        {"name": "tuz", "alternatives": ["deniz tuzu", "himalaya tuzu"]},
-        {"name": "karabiber", "alternatives": ["beyaz biber", "yeşil biber"]},
-        {"name": "kimyon", "alternatives": ["kişniş", "rezene"]}
-      ],
-      "required_extra_ingredients": [],
-      "steps": [
-        "Tavuğu küçük parçalara kesin ve orta ateşte 2 yemek kaşığı zeytinyağında 8-10 dakika, her tarafı altın rengi olana kadar kavurun.",
-        "Soğanları ince ince doğrayın ve aynı tavada 3-4 dakika, şeffaflaşana kadar soteleyin."
-      ]
-    }
-  ],
-  "extra_ingredient_recipes": [aynı yapı]
-}
-
-Kurallar:
-- Her tarife benzersiz ve yaratıcı bir isim ver. Sıradan veya genel isimler KULLANMA.
-- Tam olarak ${exactCount} exact_match_recipes ve ${extraCount} extra_ingredient_recipes döndür
-- exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini (su, tuz, karabiber, yağ, tereyağı) kullanır. exact_match_recipes için required_extra_ingredients boş dizi [] olmalı.
-- ÖNEMLİ: extra_ingredient_recipes kullanıcının malzemelerini ARTI required_extra_ingredients'te listelenen 2-4 ek malzeme kullanır. required_extra_ingredients ASLA BOŞ OLMAMALI, her extra_ingredient tarifinde mutlaka 2-4 ek malzeme olmalı (örn: ["krema", "mantar", "parmesan"])
-- extra_ingredient_recipes'teki ek malzemeler kullanıcının vermediği yeni malzemeler olmalı
-- Tüm miktarları istenen porsiyona göre ayarla
-- ADIMLAR ÇOK DETAYLI OLMALI: Her adımda kesin süre belirt (örn. "5 dakika pişirin", "20 dakika fırınlayın", "3-4 dakika kavurun"), sıcaklık derecesi (örn. "180°C fırında", "orta ateşte"), miktar (örn. "2 yemek kaşığı yağ ekleyin"), ve görsel ipuçları (örn. "altın rengi olana kadar", "kaynamaya başlayana kadar") ver. Kısa ve belirsiz adımlar YAZMA.
-- Her tarifin 5-8 açık, detaylı adımı olsun
-- Tarifler gerçekçi, çeşitli ve yapılabilir olsun
-- Tekrar eden veya birbirine çok benzer tarifler olmasın
-- "spices" dizisinde tarifin kullandığı TÜM baharatları listele. Her baharatın 2-3 alternatifi olsun (yerine kullanılabilecek baharatlar).
-- ÖNEMLİ MALZEME TUTARLILIĞI: Adımlarda kullanılan HER malzeme mutlaka "ingredients" veya "required_extra_ingredients" listesinde yer almalı. Örneğin adımlarda "yufka açın" yazıyorsa, yufka mutlaka malzeme listesinde olmalı. Tarifi oluşturduktan sonra adımları tekrar kontrol et ve eksik malzeme varsa ekle. Baharatlar hariç hiçbir malzeme atlanmamalı.
-- HER ŞEY TÜRKÇE OLMALI — İngilizce tek bir kelime bile olmamalı${
-      excludeTitles.length > 0
-        ? `\n- ÇOK ÖNEMLİ YASAK LİSTESİ: Aşağıdaki tarifleri KESİNLİKLE TEKRAR VERME. Bu isimlere benzer tarifler de VERME. Tamamen farklı yemek türleri ve pişirme yöntemleri kullan:\n${excludeTitles.map((t) => `  * ${t}`).join("\n")}`
-        : ""
-    }`;
-  } else {
-    return `You are a professional chef and recipe creator. You MUST respond with ONLY valid JSON, no markdown, no extra text, no explanation.
-
-The JSON schema you must follow exactly:
-{
-  "exact_match_recipes": [
-    {
-      "id": "unique_string",
-      "title": "Recipe Title",
-      "calories": "300-400",
-      "cuisine": "Italian",
-      "difficulty": "Easy|Medium|Hard",
-      "description": "Short 1-2 sentence description",
-      "servings": 2,
-      "ingredients": [{"name": "chicken", "quantity": "500", "unit": "g"}],
-      "spices": [
-        {"name": "salt", "alternatives": ["sea salt", "pink salt"]},
-        {"name": "black pepper", "alternatives": ["white pepper", "green peppercorn"]},
-        {"name": "cumin", "alternatives": ["coriander", "caraway"]}
-      ],
-      "required_extra_ingredients": [],
-      "steps": [
-        "Cut the chicken into bite-sized pieces and sear in 2 tablespoons of olive oil over medium-high heat for 8-10 minutes, turning occasionally, until golden brown on all sides.",
-        "Dice the onions finely and sauté in the same pan for 3-4 minutes until translucent and fragrant."
-      ]
-    }
-  ],
-  "extra_ingredient_recipes": [same structure]
-}
-
-Rules:
-- Give each recipe a unique and creative name. Do NOT use generic or common names.
-- Return exactly ${exactCount} exact_match_recipes and ${extraCount} extra_ingredient_recipes
-- exact_match_recipes use ONLY the user's ingredients plus basic pantry items (water, salt, pepper, oil, butter). required_extra_ingredients must be an empty array [] for these.
-- IMPORTANT: extra_ingredient_recipes use the user's ingredients PLUS 2-4 additional ingredients listed in required_extra_ingredients. required_extra_ingredients must NEVER be empty for these recipes - always include 2-4 extra ingredients the user didn't provide (e.g. ["cream", "mushrooms", "parmesan"])
-- The extra ingredients should be ingredients NOT in the user's list
-- Scale all quantities to the requested servings
-- STEPS MUST BE VERY DETAILED: Every step must include precise timing (e.g. "cook for 5 minutes", "bake for 20 minutes at 180°C"), temperature (e.g. "over medium-high heat", "preheat oven to 200°C"), quantities (e.g. "add 2 tablespoons of oil"), and visual cues (e.g. "until golden brown", "until the sauce thickens"). Do NOT write short vague steps.
-- Each recipe must have 5-8 clear, detailed steps
-- Make recipes realistic, diverse, and cookable
-- No duplicate or near-duplicate recipes
-- In "spices" array, list ALL spices the recipe uses. Each spice must have 2-3 alternatives (substitutes that can replace it).
-- IMPORTANT INGREDIENT CONSISTENCY: Every ingredient used in the steps MUST appear in the "ingredients" or "required_extra_ingredients" list. For example, if a step says "roll out the phyllo dough", then phyllo dough MUST be in the ingredients list. After generating the recipe, review all steps and ensure no ingredient is missing from the lists. Spices are excluded from this rule.
-- Everything must be in English${
-      excludeTitles.length > 0
-        ? `\n- CRITICAL BANNED LIST: You MUST NOT repeat ANY of the following recipes. Do NOT generate anything similar to them either. Use completely different dish types and cooking methods:\n${excludeTitles.map((t) => `  * ${t}`).join("\n")}`
-        : ""
-    }`;
-  }
-}
+// ─── Phase 1: Preview Prompts ────────────────────────────────────────────────
+// Only returns: id, title, description, calories, cuisine, difficulty,
+// servings, ingredients, required_extra_ingredients
+// NO steps, NO spices
 
 export function buildPreviewSystemPrompt(
   language: string,
@@ -114,24 +10,27 @@ export function buildPreviewSystemPrompt(
   excludeTitles: string[]
 ): string {
   const isTurkish = language === "tr";
+  const bannedList = excludeTitles.length > 0
+    ? (isTurkish
+      ? `\n- YASAK: Şu tarifleri TEKRAR VERME:\n${excludeTitles.map(t => `  * ${t}`).join("\n")}`
+      : `\n- BANNED: Do NOT generate any of these recipes:\n${excludeTitles.map(t => `  * ${t}`).join("\n")}`)
+    : "";
 
   if (isTurkish) {
-    return `Sen profesyonel bir şef ve tarif oluşturucusun. SADECE geçerli JSON ile yanıt vermelisin, markdown yok, ekstra metin yok, açıklama yok.
+    return `Sen profesyonel bir şef ve tarif oluşturucusun. SADECE geçerli JSON döndür.
 
-TÜMÜ Türkçe olmalı — tarif başlıkları, açıklamalar, malzeme adları, birim adları, zorluk seviyesi, mutfak adı — HER ŞEY TÜRKÇE.
+BU BİR ÖNİZLEME İSTEĞİDİR — "steps" ve "spices" alanları EKLEME.
 
-Bu SADECE bir ÖNİZLEME isteğidir. Adımlar ve baharatlar İSTENMİYOR. Sadece temel bilgileri döndür.
-
-Tam olarak uyman gereken JSON şeması:
+Döndürmen gereken JSON yapısı:
 {
   "exact_match_recipes": [
     {
-      "id": "unique_string",
-      "title": "Tarif Başlığı",
+      "id": "benzersiz_string",
+      "title": "Tarif Adı",
       "calories": "300-400",
       "cuisine": "İtalyan",
       "difficulty": "Kolay|Orta|Zor",
-      "description": "Kısa 1-2 cümlelik açıklama",
+      "description": "1-2 cümlelik kısa açıklama",
       "servings": 2,
       "ingredients": [{"name": "tavuk", "quantity": "500", "unit": "g"}],
       "required_extra_ingredients": []
@@ -141,25 +40,21 @@ Tam olarak uyman gereken JSON şeması:
 }
 
 Kurallar:
-- Her tarife benzersiz ve yaratıcı bir isim ver.
 - Tam olarak ${exactCount} exact_match_recipes ve ${extraCount} extra_ingredient_recipes döndür
-- exact_match_recipes SADECE kullanıcının malzemelerini ve temel mutfak malzemelerini kullanır. required_extra_ingredients boş dizi [] olmalı.
-- extra_ingredient_recipes'te required_extra_ingredients'te 2-4 ek malzeme listele.
-- Tüm miktarları istenen porsiyona göre ayarla
-- "steps" ve "spices" EKLEME — sadece yukarıdaki alanları döndür
-- Tarifler gerçekçi, çeşitli ve yapılabilir olsun
-- HER ŞEY TÜRKÇE OLMALI${excludeTitles.length > 0 ? `\n- YASAK LİSTESİ: Şu tarifleri TEKRAR VERME:\n${excludeTitles.map((t) => `  * ${t}`).join("\n")}` : ""}`;
+- exact_match_recipes: sadece kullanıcının malzemeleri + temel mutfak malzemeleri (tuz, yağ, su). required_extra_ingredients = []
+- extra_ingredient_recipes: kullanıcı malzemeleri + required_extra_ingredients'te 2-4 ek malzeme
+- HER ŞEY TÜRKÇE OLMALI${bannedList}`;
   } else {
-    return `You are a professional chef and recipe creator. You MUST respond with ONLY valid JSON, no markdown, no extra text, no explanation.
+    return `You are a professional chef. Respond with ONLY valid JSON.
 
-This is a PREVIEW-ONLY request. Do NOT include steps or spices. Only return basic recipe info.
+THIS IS A PREVIEW REQUEST — Do NOT include "steps" or "spices" fields.
 
-The JSON schema you must follow exactly:
+Return this JSON structure:
 {
   "exact_match_recipes": [
     {
       "id": "unique_string",
-      "title": "Recipe Title",
+      "title": "Recipe Name",
       "calories": "300-400",
       "cuisine": "Italian",
       "difficulty": "Easy|Medium|Hard",
@@ -173,70 +68,14 @@ The JSON schema you must follow exactly:
 }
 
 Rules:
-- Give each recipe a unique and creative name.
 - Return exactly ${exactCount} exact_match_recipes and ${extraCount} extra_ingredient_recipes
-- exact_match_recipes use ONLY the user's ingredients plus basic pantry items. required_extra_ingredients must be [].
-- extra_ingredient_recipes must have 2-4 extra ingredients in required_extra_ingredients.
-- Scale all quantities to the requested servings
-- Do NOT include "steps" or "spices" fields — only return the fields shown above
-- Make recipes realistic, diverse, and cookable
-- Everything must be in English${excludeTitles.length > 0 ? `\n- BANNED LIST: Do NOT repeat these recipes:\n${excludeTitles.map((t) => `  * ${t}`).join("\n")}` : ""}`;
+- exact_match_recipes: use only user's ingredients + basic pantry items (salt, oil, water). required_extra_ingredients = []
+- extra_ingredient_recipes: user ingredients + 2-4 extra ingredients listed in required_extra_ingredients
+- All content in English${bannedList}`;
   }
 }
 
-export function buildExpandSystemPrompt(
-  language: string
-): string {
-  const isTurkish = language === "tr";
-
-  if (isTurkish) {
-    return `Sen profesyonel bir şefsin. Sana tarif önizlemeleri verilecek. Her tarif için detaylı adımlar ve baharatlar oluştur.
-
-SADECE geçerli JSON ile yanıt ver, markdown yok, ekstra metin yok.
-
-Her tarif için şu yapıyı döndür:
-{
-  "recipes": [
-    {
-      "id": "orijinal_tarif_id",
-      "steps": ["Adım 1...", "Adım 2..."],
-      "spices": [{"name": "tuz", "alternatives": ["deniz tuzu", "himalaya tuzu"]}]
-    }
-  ]
-}
-
-Kurallar:
-- Her tarifin 5-8 detaylı adımı olsun
-- Her adımda kesin süre, sıcaklık ve miktar belirt
-- "spices" dizisinde TÜM baharatları listele, her birinin 2-3 alternatifi olsun
-- Adımlarda kullanılan her malzeme orijinal tarif malzeme listesinde olmalı
-- HER ŞEY TÜRKÇE OLMALI`;
-  } else {
-    return `You are a professional chef. You will be given recipe previews. Generate detailed steps and spices for each recipe.
-
-Respond with ONLY valid JSON, no markdown, no extra text.
-
-Return this structure for each recipe:
-{
-  "recipes": [
-    {
-      "id": "original_recipe_id",
-      "steps": ["Step 1...", "Step 2..."],
-      "spices": [{"name": "salt", "alternatives": ["sea salt", "pink salt"]}]
-    }
-  ]
-}
-
-Rules:
-- Each recipe must have 5-8 clear, detailed steps
-- Every step must include precise timing, temperature, quantities, and visual cues
-- In "spices" array, list ALL spices with 2-3 alternatives each
-- Every ingredient in steps must exist in the original recipe's ingredient list
-- Everything must be in English`;
-  }
-}
-
-export function buildUserPrompt(
+export function buildPreviewUserPrompt(
   ingredients: string[],
   cuisines: string[],
   servings: number,
@@ -245,20 +84,16 @@ export function buildUserPrompt(
   excludeTitles: string[]
 ): string {
   const ingredientList = ingredients.join(", ");
-  const cuisineList =
-    cuisines.length === 0
-      ? language === "tr"
-        ? "Herhangi bir mutfak"
-        : "Any cuisine"
-      : cuisines.join(", ");
+  const cuisineList = cuisines.length === 0
+    ? (language === "tr" ? "Herhangi bir mutfak" : "Any cuisine")
+    : cuisines.join(", ");
 
   let excludeNote = "";
   if (excludeTitles.length > 0) {
     const titles = excludeTitles.join(", ");
-    excludeNote =
-      language === "tr"
-        ? `\n\nÖNEMLİ: Şu tarifleri TEKRAR VERME, tamamen farklı tarifler oluştur: ${titles}`
-        : `\n\nIMPORTANT: Do NOT repeat these recipes, generate completely different ones: ${titles}`;
+    excludeNote = language === "tr"
+      ? `\n\nÖNEMLİ: Şu tarifleri TEKRAR VERME: ${titles}`
+      : `\n\nIMPORTANT: Do NOT repeat these recipes: ${titles}`;
   }
 
   if (language === "tr") {
@@ -267,32 +102,94 @@ export function buildUserPrompt(
 Mutfak tercihleri: ${cuisineList}
 Porsiyon: ${servings}
 
-Hatırla: SADECE geçerli JSON döndür. Markdown formatı yok. HER ŞEY TÜRKÇE OLMALI — baharat isimleri, adımlar, malzeme isimleri, birimler dahil tamamı Türkçe.${excludeNote}`;
+SADECE geçerli JSON döndür. HER ŞEY TÜRKÇE OLMALI.${excludeNote}`;
   } else {
     return `Generate ${totalCount} recipes using these ingredients: ${ingredientList}
 
 Cuisine preferences: ${cuisineList}
 Servings: ${servings}
 
-Remember: Return ONLY valid JSON matching the exact schema. No markdown formatting. All content in English.${excludeNote}`;
+Return ONLY valid JSON. All content in English.${excludeNote}`;
   }
 }
 
-export function buildExpandUserPrompt(
-  recipes: any[],
-  language: string
-): string {
-  const recipeSummaries = recipes.map(r => ({
+// ─── Phase 2: Expand Prompts ─────────────────────────────────────────────────
+// Given recipe previews, generates steps + spices
+
+export function buildExpandSystemPrompt(language: string): string {
+  const isTurkish = language === "tr";
+
+  if (isTurkish) {
+    return `Sen profesyonel bir şefsin. Sana tarif önizlemeleri verilecek. Her tarif için detaylı adımlar ve baharatlar oluştur.
+
+SADECE geçerli JSON döndür.
+
+Döndürmen gereken yapı:
+{
+  "recipes": [
+    {
+      "id": "orijinal_tarif_id",
+      "steps": [
+        "Tavuğu küçük parçalara kesin ve orta ateşte 2 yemek kaşığı zeytinyağında 8-10 dakika altın rengi olana kadar kavurun.",
+        "Soğanları ince doğrayın ve aynı tavada 3-4 dakika şeffaflaşana kadar soteleyin."
+      ],
+      "spices": [
+        {"name": "tuz", "alternatives": ["deniz tuzu", "himalaya tuzu"]},
+        {"name": "karabiber", "alternatives": ["beyaz biber", "yeşil biber"]}
+      ]
+    }
+  ]
+}
+
+Kurallar:
+- Her tarifin 5-8 detaylı adımı olsun
+- Her adımda kesin süre (dakika), sıcaklık ve görsel ipuçları ver
+- spices dizisinde kullanılan TÜM baharatları listele, her birinin 2-3 alternatifi olsun
+- Adımlarda geçen her malzeme tarif malzeme listesinde olmalı
+- HER ŞEY TÜRKÇE OLMALI`;
+  } else {
+    return `You are a professional chef. You will be given recipe previews. Generate detailed steps and spices for each recipe.
+
+Respond with ONLY valid JSON.
+
+Return this structure:
+{
+  "recipes": [
+    {
+      "id": "original_recipe_id",
+      "steps": [
+        "Cut the chicken into bite-sized pieces and sear in 2 tablespoons of olive oil over medium-high heat for 8-10 minutes until golden brown.",
+        "Dice the onions finely and sauté in the same pan for 3-4 minutes until translucent."
+      ],
+      "spices": [
+        {"name": "salt", "alternatives": ["sea salt", "pink salt"]},
+        {"name": "black pepper", "alternatives": ["white pepper", "green peppercorn"]}
+      ]
+    }
+  ]
+}
+
+Rules:
+- Each recipe must have 5-8 clear, detailed steps
+- Every step must include precise timing, temperature, quantities, and visual cues
+- List ALL spices used with 2-3 alternatives each
+- Every ingredient mentioned in steps must exist in the recipe's ingredients list
+- All content in English`;
+  }
+}
+
+export function buildExpandUserPrompt(recipes: any[], language: string): string {
+  const summaries = recipes.map(r => ({
     id: r.id,
     title: r.title,
-    ingredients: r.ingredients?.map((i: any) => i.name) || [],
+    ingredients: (r.ingredients || []).map((i: any) => i.name || i),
     required_extra_ingredients: r.required_extra_ingredients || [],
-    servings: r.servings
+    servings: r.servings,
   }));
 
   if (language === "tr") {
-    return `Şu tarifler için detaylı adımlar ve baharatlar oluştur:\n${JSON.stringify(recipeSummaries)}\n\nSADECE geçerli JSON döndür. HER ŞEY TÜRKÇE.`;
+    return `Şu tarifler için detaylı adımlar ve baharatlar oluştur:\n${JSON.stringify(summaries, null, 2)}\n\nSADECE geçerli JSON döndür. HER ŞEY TÜRKÇE.`;
   } else {
-    return `Generate detailed steps and spices for these recipes:\n${JSON.stringify(recipeSummaries)}\n\nReturn ONLY valid JSON. All content in English.`;
+    return `Generate detailed steps and spices for these recipes:\n${JSON.stringify(summaries, null, 2)}\n\nReturn ONLY valid JSON. All content in English.`;
   }
 }
