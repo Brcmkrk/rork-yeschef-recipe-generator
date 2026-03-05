@@ -15,8 +15,8 @@ class RecipeViewModel {
     var errorMessage: String?
     var hasResults: Bool = false
     private var generationTask: Task<Void, Never>?
-    private var expandTasks = Dictionary<String, Task<Void, Never>>()
-    private var prioritizedId: String?
+    private var expandTask: Task<Void, Never>?
+    private var expandQueue: [String] = []
     private var previousRecipeTitles: [String] = []
 
     var ingredientsList: [String] {
@@ -128,9 +128,9 @@ class RecipeViewModel {
 
     func cancelGeneration() {
         generationTask?.cancel()
-        for (_, task) in expandTasks { task.cancel() }
+        expandTask?.cancel()
         generationTask = nil
-        expandTasks.removeAll()
+        expandTask = nil
         isLoading = false
         isExpanding = false
     }
@@ -173,7 +173,7 @@ class RecipeViewModel {
             print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
 
             guard !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else {
-                print("[RecipeVM] Empty recipes after decode and retry.")
+                print("[RecipeVM] Empty recipes after decode. Raw exact: \(response.exact_match_recipes.count), raw extra: \(response.extra_ingredient_recipes.count)")
                 errorMessage = language == "tr"
                     ? "Tarif oluşturulamadı. Lütfen farklı malzemeler veya mutfak seçimi deneyin."
                     : "No recipes were generated. Please try different ingredients."
@@ -191,27 +191,42 @@ class RecipeViewModel {
     }
 
     func prioritizeRecipe(id: String) {
-        prioritizedId = id
+        guard !expandQueue.isEmpty else { return }
+        guard let idx = expandQueue.firstIndex(of: id) else { return }
+        expandQueue.remove(at: idx)
+        expandQueue.insert(id, at: 0)
         print("[RecipeVM] Prioritized recipe: \(id)")
     }
 
     private func expandRecipesInBackground() {
-        for (_, task) in expandTasks { task.cancel() }
-        expandTasks.removeAll()
+        expandTask?.cancel()
 
         let allRecipes = exactMatchRecipes + extraIngredientRecipes
         guard !allRecipes.isEmpty else { return }
 
+        expandQueue = allRecipes.map { $0.id }
         isExpanding = true
 
-        for recipe in allRecipes {
-            guard !recipe.isFullyLoaded else { continue }
-            let recipeId = recipe.id
-            expandTasks[recipeId] = Task {
+        expandTask = Task {
+            while !expandQueue.isEmpty {
+                guard !Task.isCancelled else { break }
+
+                let nextId = expandQueue[0]
+                let allCurrent = exactMatchRecipes + extraIngredientRecipes
+                guard let recipe = allCurrent.first(where: { $0.id == nextId }) else {
+                    expandQueue.removeFirst()
+                    continue
+                }
+
+                if recipe.isFullyLoaded {
+                    expandQueue.removeFirst()
+                    continue
+                }
+
                 do {
                     let expanded = try await OpenAIService.shared.expandRecipes([recipe], language: language)
 
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled else { break }
 
                     for detail in expanded {
                         if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
@@ -227,18 +242,17 @@ class RecipeViewModel {
                         }
                     }
 
-                    print("[RecipeVM] Expanded recipe: \(recipeId)")
+                    print("[RecipeVM] Expanded recipe: \(nextId)")
                 } catch is CancellationError {
-                    return
+                    break
                 } catch {
-                    print("[RecipeVM] Expand error for \(recipeId): \(error.localizedDescription)")
+                    print("[RecipeVM] Expand error for \(nextId): \(error.localizedDescription)")
                 }
 
-                expandTasks.removeValue(forKey: recipeId)
-                if expandTasks.isEmpty {
-                    isExpanding = false
-                }
+                expandQueue.removeFirst()
             }
+
+            isExpanding = false
         }
     }
 
