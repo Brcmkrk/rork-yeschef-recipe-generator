@@ -173,7 +173,10 @@ class RecipeViewModel {
             print("[RecipeVM] Previews loaded: \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
 
             guard !exactMatchRecipes.isEmpty || !extraIngredientRecipes.isEmpty else {
-                errorMessage = "No recipes were generated. Please try different ingredients."
+                print("[RecipeVM] Empty recipes after decode. Raw exact: \(response.exact_match_recipes.count), raw extra: \(response.extra_ingredient_recipes.count)")
+                errorMessage = language == "tr"
+                    ? "Tarif oluşturulamadı. Lütfen farklı malzemeler veya mutfak seçimi deneyin."
+                    : "No recipes were generated. Please try different ingredients."
                 return
             }
 

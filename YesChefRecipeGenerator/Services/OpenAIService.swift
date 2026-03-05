@@ -199,7 +199,11 @@ class OpenAIService {
         }
 
         do {
-            return try JSONDecoder().decode(RecipeResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(RecipeResponse.self, from: data)
+            if decoded.exact_match_recipes.isEmpty && decoded.extra_ingredient_recipes.isEmpty {
+                print("[OpenAIService] Backend returned empty recipe arrays. Response: \(bodyString.prefix(1000))")
+            }
+            return decoded
         } catch {
             print("[OpenAIService] Backend decode error: \(error)")
             print("[OpenAIService] Backend response body: \(bodyString.prefix(1000))")
