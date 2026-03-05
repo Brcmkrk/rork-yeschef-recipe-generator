@@ -61,7 +61,9 @@ class OpenAIService {
     }
 
     private var isBackendConfigured: Bool {
-        !backendBaseURL.isEmpty
+        let configured = !backendBaseURL.isEmpty
+        print("[OpenAIService] Backend configured: \(configured), URL: '\(backendBaseURL)'")
+        return configured
     }
 
     private var hasDirectAPIKey: Bool {
@@ -134,8 +136,9 @@ class OpenAIService {
                     excludeTitles: excludeTitles
                 )
             } catch {
-                print("[OpenAIService] Backend preview failed: \(error.localizedDescription)")
+                print("[OpenAIService] Backend preview failed: \(error.localizedDescription), hasDirectKey=\(hasDirectAPIKey)")
                 if hasDirectAPIKey {
+                    print("[OpenAIService] Falling back to direct OpenAI...")
                     return try await generatePreviewsDirectly(
                         ingredients: ingredients, cuisines: cuisines, servings: servings,
                         language: language, exactCount: exactCount, extraCount: extraCount,
@@ -163,6 +166,7 @@ class OpenAIService {
         excludeTitles: [String]
     ) async throws -> RecipeResponse {
         let urlString = "\(backendBaseURL)/generate-recipe-previews"
+        print("[OpenAIService] Backend URL: \(urlString)")
         guard let url = URL(string: urlString) else { throw OpenAIError.invalidURL }
 
         let requestBody = GenerateRecipeRequest(
@@ -174,7 +178,7 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 60
+        urlRequest.timeoutInterval = 90
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
@@ -197,7 +201,8 @@ class OpenAIService {
         do {
             return try JSONDecoder().decode(RecipeResponse.self, from: data)
         } catch {
-            print("[OpenAIService] Decode error: \(error)")
+            print("[OpenAIService] Backend decode error: \(error)")
+            print("[OpenAIService] Backend response body: \(bodyString.prefix(1000))")
             throw OpenAIError.apiError("Server returned invalid data. Please try again.")
         }
     }
@@ -328,7 +333,18 @@ class OpenAIService {
             parsed = try JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData)
         } catch {
             print("[OpenAIService] Direct preview decode error: \(error)")
-            print("[OpenAIService] Raw JSON (first 500): \(cleaned.prefix(500))")
+            print("[OpenAIService] Raw JSON (first 1000): \(cleaned.prefix(1000))")
+            if let wrapper = try? JSONDecoder().decode(WrappedPreviewResponse.self, from: jsonData) {
+                let exactRaw = wrapper.recipes?.prefix(exactCount) ?? []
+                let extraRaw = wrapper.recipes?.dropFirst(exactCount).prefix(extraCount) ?? []
+                let exactRecipes = exactRaw.map { toRecipe($0) }
+                let extraRecipes = extraRaw.map { toRecipe($0) }
+                return RecipeResponse(
+                    exact_match_recipes: Array(exactRecipes),
+                    extra_ingredient_recipes: Array(extraRecipes),
+                    _cache: nil
+                )
+            }
             throw OpenAIError.apiError("Tarif oluşturulamadı, lütfen tekrar deneyin.")
         }
 
@@ -637,6 +653,10 @@ nonisolated struct OpenAIChatResponse: Codable, Sendable {
 nonisolated struct DirectPreviewResponse: Codable, Sendable {
     let exact_match_recipes: [RawRecipe]?
     let extra_ingredient_recipes: [RawRecipe]?
+}
+
+nonisolated struct WrappedPreviewResponse: Codable, Sendable {
+    let recipes: [RawRecipe]?
 }
 
 nonisolated struct RawRecipe: Codable, Sendable {
