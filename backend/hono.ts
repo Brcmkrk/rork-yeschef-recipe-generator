@@ -120,12 +120,13 @@ app.post("/generate-recipe", async (c) => {
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.95,
-      max_tokens: dynamicMaxTokens,
+      temperature: 0.8,
+      max_tokens: Math.min(2500, dynamicMaxTokens),
     });
 
     const content = response.choices[0]?.message?.content;
