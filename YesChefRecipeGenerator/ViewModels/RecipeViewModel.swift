@@ -15,8 +15,8 @@ class RecipeViewModel {
     var errorMessage: String?
     var hasResults: Bool = false
     private var generationTask: Task<Void, Never>?
-    private var expandTask: Task<Void, Never>?
-    private var expandQueue: [String] = []
+    private var expandTasks = Dictionary<String, Task<Void, Never>>()
+    private var prioritizedId: String?
     private var previousRecipeTitles: [String] = []
 
     var ingredientsList: [String] {
@@ -128,9 +128,9 @@ class RecipeViewModel {
 
     func cancelGeneration() {
         generationTask?.cancel()
-        expandTask?.cancel()
+        for (_, task) in expandTasks { task.cancel() }
         generationTask = nil
-        expandTask = nil
+        expandTasks.removeAll()
         isLoading = false
         isExpanding = false
     }
@@ -191,42 +191,27 @@ class RecipeViewModel {
     }
 
     func prioritizeRecipe(id: String) {
-        guard !expandQueue.isEmpty else { return }
-        guard let idx = expandQueue.firstIndex(of: id) else { return }
-        expandQueue.remove(at: idx)
-        expandQueue.insert(id, at: 0)
+        prioritizedId = id
         print("[RecipeVM] Prioritized recipe: \(id)")
     }
 
     private func expandRecipesInBackground() {
-        expandTask?.cancel()
+        for (_, task) in expandTasks { task.cancel() }
+        expandTasks.removeAll()
 
         let allRecipes = exactMatchRecipes + extraIngredientRecipes
         guard !allRecipes.isEmpty else { return }
 
-        expandQueue = allRecipes.map { $0.id }
         isExpanding = true
 
-        expandTask = Task {
-            while !expandQueue.isEmpty {
-                guard !Task.isCancelled else { break }
-
-                let nextId = expandQueue[0]
-                let allCurrent = exactMatchRecipes + extraIngredientRecipes
-                guard let recipe = allCurrent.first(where: { $0.id == nextId }) else {
-                    expandQueue.removeFirst()
-                    continue
-                }
-
-                if recipe.isFullyLoaded {
-                    expandQueue.removeFirst()
-                    continue
-                }
-
+        for recipe in allRecipes {
+            guard !recipe.isFullyLoaded else { continue }
+            let recipeId = recipe.id
+            expandTasks[recipeId] = Task {
                 do {
                     let expanded = try await OpenAIService.shared.expandRecipes([recipe], language: language)
 
-                    guard !Task.isCancelled else { break }
+                    guard !Task.isCancelled else { return }
 
                     for detail in expanded {
                         if let idx = exactMatchRecipes.firstIndex(where: { $0.id == detail.id }) {
@@ -242,17 +227,18 @@ class RecipeViewModel {
                         }
                     }
 
-                    print("[RecipeVM] Expanded recipe: \(nextId)")
+                    print("[RecipeVM] Expanded recipe: \(recipeId)")
                 } catch is CancellationError {
-                    break
+                    return
                 } catch {
-                    print("[RecipeVM] Expand error for \(nextId): \(error.localizedDescription)")
+                    print("[RecipeVM] Expand error for \(recipeId): \(error.localizedDescription)")
                 }
 
-                expandQueue.removeFirst()
+                expandTasks.removeValue(forKey: recipeId)
+                if expandTasks.isEmpty {
+                    isExpanding = false
+                }
             }
-
-            isExpanding = false
         }
     }
 
