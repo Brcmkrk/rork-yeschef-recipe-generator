@@ -50,9 +50,6 @@ nonisolated struct BackendErrorResponse: Codable, Sendable {
 class OpenAIService {
     static let shared = OpenAIService()
 
-    private let primaryDirectModel: String = "gpt-4.1-mini"
-    private let fallbackDirectModel: String = "gpt-4.1"
-
     private var backendBaseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
         guard !url.isEmpty else { return "" }
@@ -94,10 +91,9 @@ class OpenAIService {
 
     private func callOpenAIDirectly(
         messages: [(role: String, content: String)],
-        temperature: Double? = nil,
+        temperature: Double,
         maxTokens: Int,
-        jsonMode: Bool = false,
-        model: String = "gpt-5-mini"
+        jsonMode: Bool = false
     ) async throws -> String {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
@@ -105,14 +101,12 @@ class OpenAIService {
 
         let chatMessages = messages.map { OpenAIChatMessage(role: $0.role, content: $0.content) }
         let request = OpenAIChatRequest(
-            model: model,
+            model: "gpt-4.1-nano",
             response_format: jsonMode ? OpenAIResponseFormat(type: "json_object") : nil,
             messages: chatMessages,
-            temperature: temperature ?? 0.8,
-            max_completion_tokens: maxTokens,
-            reasoning_effort: nil
+            temperature: temperature,
+            max_tokens: maxTokens
         )
-        print("[OpenAIService] Using model: \(model)")
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
@@ -354,6 +348,45 @@ class OpenAIService {
             userPrompt = "Generate \(totalCount) recipes using these ingredients: \(ingredientList)\n\nCuisine preferences: \(cuisineList)\nServings: \(servings)\n\nReturn ONLY valid JSON. All content in English.\(excludeNote)"
         }
 
+        let content = try await callOpenAIDirectly(
+            messages: [
+                (role: "system", content: systemPrompt),
+                (role: "user", content: userPrompt)
+            ],
+            temperature: 0.85,
+            maxTokens: 5500,
+            jsonMode: true
+        )
+
+        let cleaned = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let jsonData = cleaned.data(using: .utf8) else {
+            throw OpenAIError.decodingError("Could not convert to data")
+        }
+
+        let parsed: DirectPreviewResponse
+        do {
+            parsed = try JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData)
+        } catch {
+            print("[OpenAIService] Direct preview decode error: \(error)")
+            print("[OpenAIService] Raw JSON (first 1000): \(cleaned.prefix(1000))")
+            if let wrapper = try? JSONDecoder().decode(WrappedPreviewResponse.self, from: jsonData) {
+                let exactRaw = wrapper.recipes?.prefix(exactCount) ?? []
+                let extraRaw = wrapper.recipes?.dropFirst(exactCount).prefix(extraCount) ?? []
+                let exactRecipes = exactRaw.map { toRecipe($0) }
+                let extraRecipes = extraRaw.map { toRecipe($0) }
+                return RecipeResponse(
+                    exact_match_recipes: Array(exactRecipes),
+                    extra_ingredient_recipes: Array(extraRecipes),
+                    _cache: nil
+                )
+            }
+            throw OpenAIError.apiError("Tarif oluşturulamadı, lütfen tekrar deneyin.")
+        }
+
         func toRecipe(_ r: RawRecipe) -> Recipe {
             Recipe(
                 id: r.id ?? "recipe_\(Int(Date().timeIntervalSince1970))_\(String(Int.random(in: 10000...99999)))",
@@ -377,70 +410,14 @@ class OpenAIService {
             )
         }
 
-        func parsePreviewContent(_ content: String) throws -> RecipeResponse {
-            let cleaned = content
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        let exactRecipes = (parsed.exact_match_recipes ?? []).prefix(exactCount).map { toRecipe($0) }
+        let extraRecipes = (parsed.extra_ingredient_recipes ?? []).prefix(extraCount).map { toRecipe($0) }
 
-            guard let jsonData = cleaned.data(using: .utf8) else {
-                throw OpenAIError.decodingError("Could not convert to data")
-            }
-
-            if let parsed = try? JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData) {
-                let exactRecipes = (parsed.exact_match_recipes ?? []).prefix(exactCount).map { toRecipe($0) }
-                let extraRecipes = (parsed.extra_ingredient_recipes ?? []).prefix(extraCount).map { toRecipe($0) }
-                if !exactRecipes.isEmpty || !extraRecipes.isEmpty {
-                    return RecipeResponse(
-                        exact_match_recipes: Array(exactRecipes),
-                        extra_ingredient_recipes: Array(extraRecipes),
-                        _cache: nil
-                    )
-                }
-            }
-
-            if let wrapper = try? JSONDecoder().decode(WrappedPreviewResponse.self, from: jsonData) {
-                let exactRaw = wrapper.recipes?.prefix(exactCount) ?? []
-                let extraRaw = wrapper.recipes?.dropFirst(exactCount).prefix(extraCount) ?? []
-                let exactRecipes = exactRaw.map { toRecipe($0) }
-                let extraRecipes = extraRaw.map { toRecipe($0) }
-                if !exactRecipes.isEmpty || !extraRecipes.isEmpty {
-                    return RecipeResponse(
-                        exact_match_recipes: Array(exactRecipes),
-                        extra_ingredient_recipes: Array(extraRecipes),
-                        _cache: nil
-                    )
-                }
-            }
-
-            print("[OpenAIService] Parse failed or empty. Raw (first 1000): \(cleaned.prefix(1000))")
-            throw OpenAIError.decodingError("Empty or invalid response")
-        }
-
-        let messages: [(role: String, content: String)] = [
-            (role: "system", content: systemPrompt),
-            (role: "user", content: userPrompt)
-        ]
-
-        do {
-            let content = try await callOpenAIDirectly(
-                messages: messages, maxTokens: 5500, jsonMode: true, model: primaryDirectModel
-            )
-            let result = try parsePreviewContent(content)
-            if !result.exact_match_recipes.isEmpty || !result.extra_ingredient_recipes.isEmpty {
-                return result
-            }
-            print("[OpenAIService] \(primaryDirectModel) returned empty recipes, falling back to \(fallbackDirectModel)...")
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            print("[OpenAIService] \(primaryDirectModel) failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
-        }
-
-        let fallbackContent = try await callOpenAIDirectly(
-            messages: messages, maxTokens: 5500, jsonMode: true, model: fallbackDirectModel
+        return RecipeResponse(
+            exact_match_recipes: Array(exactRecipes),
+            extra_ingredient_recipes: Array(extraRecipes),
+            _cache: nil
         )
-        return try parsePreviewContent(fallbackContent)
     }
 
     func expandRecipes(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
@@ -583,37 +560,31 @@ class OpenAIService {
             ? "Şu tarifler için detaylı adımlar ve baharatlar oluştur:\n\(summaryString)\n\nSADECE geçerli JSON döndür. HER ŞEY TÜRKÇE."
             : "Generate detailed steps and spices for these recipes:\n\(summaryString)\n\nReturn ONLY valid JSON. All content in English."
 
-        let expandMessages: [(role: String, content: String)] = [
-            (role: "system", content: systemPrompt),
-            (role: "user", content: userPrompt)
-        ]
+        let content = try await callOpenAIDirectly(
+            messages: [
+                (role: "system", content: systemPrompt),
+                (role: "user", content: userPrompt)
+            ],
+            temperature: 0.75,
+            maxTokens: 4000,
+            jsonMode: true
+        )
 
-        func parseExpandContent(_ content: String) throws -> [ExpandedRecipeDetail] {
-            let cleaned = content
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let jsonData = cleaned.data(using: .utf8) else {
-                throw OpenAIError.decodingError("Could not convert expand response to data")
-            }
-            return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
+        let cleaned = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let jsonData = cleaned.data(using: .utf8) else {
+            throw OpenAIError.decodingError("Could not convert expand response to data")
         }
 
         do {
-            let content = try await callOpenAIDirectly(
-                messages: expandMessages, maxTokens: 4000, jsonMode: true, model: primaryDirectModel
-            )
-            return try parseExpandContent(content)
-        } catch is CancellationError {
-            throw CancellationError()
+            return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
         } catch {
-            print("[OpenAIService] \(primaryDirectModel) expand failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
+            print("[OpenAIService] Direct expand decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse recipe details. Please try again.")
         }
-
-        let fallbackContent = try await callOpenAIDirectly(
-            messages: expandMessages, maxTokens: 4000, jsonMode: true, model: fallbackDirectModel
-        )
-        return try parseExpandContent(fallbackContent)
     }
 
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
@@ -697,48 +668,29 @@ class OpenAIService {
         let recipesJSON = try JSONEncoder().encode(recipes)
         let recipesString = String(data: recipesJSON, encoding: .utf8) ?? "[]"
 
-        let translationMessages: [(role: String, content: String)] = [
-            (role: "system", content: systemPrompt),
-            (role: "user", content: recipesString)
-        ]
-
-        func parseTranslationContent(_ content: String) throws -> [Recipe] {
-            let cleaned = content
-                .replacingOccurrences(of: "```json", with: "")
-                .replacingOccurrences(of: "```", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let jsonData = cleaned.data(using: .utf8) else {
-                throw OpenAIError.decodingError("Could not convert translation to data")
-            }
-            do {
-                return try JSONDecoder().decode([Recipe].self, from: jsonData)
-            } catch {
-                print("[OpenAIService] Direct translate decode error: \(error)")
-                throw OpenAIError.apiError("Failed to parse translation. Please try again.")
-            }
-        }
-
-        do {
-            let content = try await callOpenAIDirectly(
-                messages: translationMessages,
-                maxTokens: 8000,
-                jsonMode: false,
-                model: primaryDirectModel
-            )
-            return try parseTranslationContent(content)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            print("[OpenAIService] \(primaryDirectModel) translate failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
-        }
-
-        let fallbackContent = try await callOpenAIDirectly(
-            messages: translationMessages,
+        let content = try await callOpenAIDirectly(
+            messages: [
+                (role: "system", content: systemPrompt),
+                (role: "user", content: recipesString)
+            ],
+            temperature: 0.3,
             maxTokens: 8000,
-            jsonMode: false,
-            model: fallbackDirectModel
+            jsonMode: false
         )
-        return try parseTranslationContent(fallbackContent)
+
+        let cleaned = content
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let jsonData = cleaned.data(using: .utf8) else {
+            throw OpenAIError.decodingError("Could not convert translation to data")
+        }
+        do {
+            return try JSONDecoder().decode([Recipe].self, from: jsonData)
+        } catch {
+            print("[OpenAIService] Direct translate decode error: \(error)")
+            throw OpenAIError.apiError("Failed to parse translation. Please try again.")
+        }
     }
 }
 
@@ -755,9 +707,8 @@ nonisolated struct OpenAIChatRequest: Codable, Sendable {
     let model: String
     let response_format: OpenAIResponseFormat?
     let messages: [OpenAIChatMessage]
-    let temperature: Double?
-    let max_completion_tokens: Int
-    let reasoning_effort: String?
+    let temperature: Double
+    let max_tokens: Int
 }
 
 nonisolated struct OpenAIChatChoice: Codable, Sendable {

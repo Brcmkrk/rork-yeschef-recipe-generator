@@ -12,36 +12,6 @@ const openai = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
 });
 
-const PRIMARY_MODEL = "gpt-5-mini";
-const FALLBACK_MODEL = "gpt-5.3-chat-latest";
-
-function buildChatCompletionRequest(
-  model: string,
-  messages: Array<{ role: "system" | "user"; content: string }>,
-  maxCompletionTokens: number,
-  temperature?: number
-) {
-  const usesReasoningModel = model === PRIMARY_MODEL;
-  return {
-    model,
-    messages,
-    max_completion_tokens: maxCompletionTokens,
-    ...(usesReasoningModel ? { reasoning_effort: "minimal" as const } : {}),
-    ...(!usesReasoningModel && temperature !== undefined ? { temperature } : {}),
-  };
-}
-
-async function createChatCompletion(
-  messages: Array<{ role: "system" | "user"; content: string }>,
-  maxCompletionTokens: number,
-  temperature?: number,
-  model = PRIMARY_MODEL
-) {
-  return openai.chat.completions.create(
-    buildChatCompletionRequest(model, messages, maxCompletionTokens, temperature)
-  );
-}
-
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
@@ -118,20 +88,17 @@ export const recipeRouter = createTRPCRouter({
         aiTotal, allExcludeTitles
       );
 
-      const messages = [
-        { role: "system" as const, content: systemPrompt },
-        { role: "user" as const, content: userPrompt },
-      ];
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.95,
+        max_tokens: 4000,
+      });
 
-      let content: string | null | undefined
-
-      try {
-        const response = await createChatCompletion(messages, 4000, undefined, PRIMARY_MODEL);
-        content = response.choices[0]?.message?.content;
-      } catch {
-        const fallbackResponse = await createChatCompletion(messages, 4000, 0.95, FALLBACK_MODEL);
-        content = fallbackResponse.choices[0]?.message?.content;
-      }
+      const content = response.choices[0]?.message?.content;
       if (!content) {
         if (usedCached.length > 0) {
           return {
@@ -234,20 +201,17 @@ Keep the same JSON structure. Keep id, calories, servings, and quantity values u
 For difficulty, use: ${input.targetLanguage === "tr" ? "Kolay/Orta/Zor" : "Easy/Medium/Hard"}
 Respond with ONLY the translated JSON array. No markdown, no extra text.`;
 
-      const messages = [
-        { role: "system" as const, content: systemPrompt },
-        { role: "user" as const, content: JSON.stringify(input.recipes) },
-      ];
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(input.recipes) },
+        ],
+        temperature: 0.3,
+        max_tokens: 8000,
+      });
 
-      let content: string | null | undefined
-
-      try {
-        const response = await createChatCompletion(messages, 8000, undefined, PRIMARY_MODEL);
-        content = response.choices[0]?.message?.content;
-      } catch {
-        const fallbackResponse = await createChatCompletion(messages, 8000, 0.3, FALLBACK_MODEL);
-        content = fallbackResponse.choices[0]?.message?.content;
-      }
+      const content = response.choices[0]?.message?.content;
       if (!content) {
         throw new Error("No response from AI");
       }

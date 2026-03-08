@@ -37,42 +37,22 @@ function getOpenAIKey(): string {
 }
 
 // ── OpenAI Helper ────────────────────────────────────────────────────────────
-const PRIMARY_MODEL = "gpt-4.1-mini";
-const FALLBACK_MODEL = "gpt-4.1";
-
-function buildOpenAIRequest(
-  model: string,
-  messages: Array<{ role: string; content: string }>,
-  maxTokens: number,
-  jsonMode: boolean,
-  temperature?: number
-): Record<string, any> {
-  const body: Record<string, any> = {
-    model,
-    messages,
-    max_completion_tokens: maxTokens,
-  };
-  if (jsonMode) body.response_format = { type: "json_object" };
-  if (temperature !== undefined) {
-    body.temperature = temperature;
-  } else {
-    body.temperature = 0.8;
-  }
-  return body;
-}
-
 async function callOpenAI(
   messages: Array<{ role: string; content: string }>,
+  temperature: number,
   maxTokens: number,
-  jsonMode = false,
-  model = PRIMARY_MODEL,
-  temperature?: number
+  jsonMode = false
 ): Promise<string | null> {
   const apiKey = getOpenAIKey();
   if (!apiKey) throw new Error("OpenAI API key not configured");
 
-  const body = buildOpenAIRequest(model, messages, maxTokens, jsonMode, temperature);
-  console.log(`[OpenAI] Using model: ${model}`);
+  const body: Record<string, any> = {
+    model: "gpt-4.1-nano",
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+  if (jsonMode) body.response_format = { type: "json_object" };
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -317,46 +297,21 @@ app.post("/generate-recipe-previews", async (c) => {
 
     console.log(`[PREVIEW] ${language} | ${exactCount}+${extraCount} | ${ingredients.join(", ")}`);
 
-    const previewMessages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ];
-    const maxTokens = Math.min(3000, Math.max(1200, (exactCount + extraCount) * 500));
+    const content = await callOpenAI(
+      [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      0.85,
+      Math.min(3000, Math.max(1200, (exactCount + extraCount) * 500)),
+      true
+    );
 
-    const parsePreviewResponse = (content: string) => {
-      const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      return {
-        exactRecipes: (parsed.exact_match_recipes || []).slice(0, exactCount).map((r: any) => sanitizePreview(r, language)),
-        extraRecipes: (parsed.extra_ingredient_recipes || []).slice(0, extraCount).map((r: any) => sanitizePreview(r, language)),
-      };
-    };
+    if (!content) return c.json({ error: "No response from AI" }, 500);
 
-    let parsedRecipes = { exactRecipes: [] as any[], extraRecipes: [] as any[] };
+    let parsed: any;
+    try { parsed = JSON.parse(content); }
+    catch { return c.json({ error: "Failed to parse AI response" }, 500); }
 
-    try {
-      const content = await callOpenAI(previewMessages, maxTokens, true, PRIMARY_MODEL);
-      if (!content) throw new Error("No response from AI");
-      parsedRecipes = parsePreviewResponse(content);
-      if (parsedRecipes.exactRecipes.length === 0 && parsedRecipes.extraRecipes.length === 0) {
-        throw new Error("Primary model returned empty recipe arrays");
-      }
-    } catch (error: any) {
-      console.error(`[PREVIEW] Primary model failed: ${error.message}`);
-      const fallbackContent = await callOpenAI(previewMessages, maxTokens, true, FALLBACK_MODEL, 0.85);
-      if (!fallbackContent) return c.json({ error: "No response from AI" }, 500);
-      try {
-        parsedRecipes = parsePreviewResponse(fallbackContent);
-      } catch {
-        return c.json({ error: "Failed to parse AI response" }, 500);
-      }
-      if (parsedRecipes.exactRecipes.length === 0 && parsedRecipes.extraRecipes.length === 0) {
-        return c.json({ error: "AI returned no recipes" }, 500);
-      }
-    }
-
-    const exactRecipes = parsedRecipes.exactRecipes;
-    const extraRecipes = parsedRecipes.extraRecipes;
+    const exactRecipes = (parsed.exact_match_recipes || []).slice(0, exactCount).map((r: any) => sanitizePreview(r, language));
+    const extraRecipes = (parsed.extra_ingredient_recipes || []).slice(0, extraCount).map((r: any) => sanitizePreview(r, language));
 
     console.log(`[PREVIEW] ✅ ${exactRecipes.length} exact + ${extraRecipes.length} extra`);
 
@@ -388,39 +343,20 @@ app.post("/expand-recipes", async (c) => {
     const systemPrompt = expandSystemPrompt(language);
     const userPrompt = expandUserPrompt([recipe], language);
 
-    const expandMessages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ];
+    const content = await callOpenAI(
+      [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      0.75,
+      2000,
+      true
+    );
 
-    const parseExpandResponse = (content: string) => {
-      const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      return parsed.recipes || [];
-    };
+    if (!content) return c.json({ error: "No response from AI" }, 500);
 
-    let expanded: any[] = [];
+    let parsed: any;
+    try { parsed = JSON.parse(content); }
+    catch { return c.json({ error: "Failed to parse AI response" }, 500); }
 
-    try {
-      const content = await callOpenAI(expandMessages, 2000, true, PRIMARY_MODEL);
-      if (!content) throw new Error("No response from AI");
-      expanded = parseExpandResponse(content);
-      if (expanded.length === 0) {
-        throw new Error("Primary model returned no expanded recipes");
-      }
-    } catch (error: any) {
-      console.error(`[EXPAND] Primary model failed: ${error.message}`);
-      const fallbackContent = await callOpenAI(expandMessages, 2000, true, FALLBACK_MODEL, 0.75);
-      if (!fallbackContent) return c.json({ error: "No response from AI" }, 500);
-      try {
-        expanded = parseExpandResponse(fallbackContent);
-      } catch {
-        return c.json({ error: "Failed to parse AI response" }, 500);
-      }
-      if (expanded.length === 0) {
-        return c.json({ error: "AI returned no expanded recipes" }, 500);
-      }
-    }
+    const expanded = parsed.recipes || [];
     console.log(`[EXPAND] ✅ "${recipe.title}" done`);
 
     return c.json({ recipes: expanded });
@@ -455,29 +391,21 @@ Respond with ONLY the translated JSON array. No markdown.`;
 
     console.log(`[TRANSLATE] ${recipes.length} recipe(s) → ${targetLang}`);
 
-    const translationMessages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(recipes) },
-    ];
+    const content = await callOpenAI(
+      [{ role: "system", content: systemPrompt }, { role: "user", content: JSON.stringify(recipes) }],
+      0.3,
+      8000,
+      false
+    );
 
-    const parseTranslationResponse = (content: string) => {
-      const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
-      return JSON.parse(cleaned);
-    };
+    if (!content) return c.json({ error: "No response from AI" }, 500);
 
+    const cleaned = content.replace(/```json/g, "").replace(/```/g, "").trim();
     try {
-      const content = await callOpenAI(translationMessages, 8000, false, PRIMARY_MODEL);
-      if (!content) throw new Error("No response from AI");
-      return c.json(parseTranslationResponse(content));
-    } catch (error: any) {
-      console.error(`[TRANSLATE] Primary model failed: ${error.message}`);
-      const fallbackContent = await callOpenAI(translationMessages, 8000, false, FALLBACK_MODEL, 0.3);
-      if (!fallbackContent) return c.json({ error: "No response from AI" }, 500);
-      try {
-        return c.json(parseTranslationResponse(fallbackContent));
-      } catch {
-        return c.json({ error: "Failed to parse translation response" }, 500);
-      }
+      const parsed = JSON.parse(cleaned);
+      return c.json(parsed);
+    } catch {
+      return c.json({ error: "Failed to parse translation response" }, 500);
     }
 
   } catch (err: any) {
