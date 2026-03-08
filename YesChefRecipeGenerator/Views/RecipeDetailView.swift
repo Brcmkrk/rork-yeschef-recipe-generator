@@ -179,10 +179,10 @@ struct RecipeDetailView: View {
                     .fill(.orange.opacity(0.04))
                     .frame(width: 100, height: 100)
 
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.orange)
-                    .symbolEffect(.pulse, options: .repeating)
+                Image("MascotImage")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 60, height: 60)
             }
 
             VStack(spacing: 8) {
@@ -191,8 +191,8 @@ struct RecipeDetailView: View {
                     .foregroundStyle(.primary)
 
                 Text(lang.t(
-                    "The chef is writing out the detailed steps for you",
-                    "Şef sizin için detaylı adımları yazıyor"
+                    "Cooktopus is writing the detailed steps for you",
+                    "Cooktopus sizin için detaylı adımları yazıyor"
                 ))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

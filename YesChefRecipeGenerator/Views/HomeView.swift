@@ -51,9 +51,15 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("YesChef")
-                        .font(.system(.headline, design: .rounded, weight: .bold))
-                        .foregroundStyle(.orange)
+                    HStack(spacing: 6) {
+                        Image("MascotImage")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 28)
+                        Text("Cooktopus")
+                            .font(.system(.headline, design: .rounded, weight: .bold))
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
             .fullScreenCover(isPresented: $showLoading, onDismiss: {
@@ -115,16 +121,12 @@ struct HomeView: View {
                     .scaleEffect(headerPulse ? 1.05 : 0.95)
                     .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: headerPulse)
 
-                Image(systemName: "frying.pan.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.orange, Color(red: 0.85, green: 0.45, blue: 0.15)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .symbolEffect(.bounce, value: viewModel.isLoading)
+                Image("MascotImage")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 90, height: 90)
+                    .scaleEffect(headerPulse ? 1.08 : 1.0)
+                    .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: headerPulse)
             }
 
             Text(lang.t("What's in your kitchen?", "Mutfağında ne var?"))

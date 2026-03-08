@@ -140,14 +140,23 @@ struct OnboardingView: View {
         VStack(spacing: 28) {
             Spacer()
 
-            Text("🍳")
-                .font(.system(size: 80))
-                .scaleEffect(animateIcon ? 1.1 : 0.95)
-                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: animateIcon)
+            Image("MascotImage")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 160, height: 160)
+                .scaleEffect(animateIcon ? 1.08 : 0.95)
+                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animateIcon)
 
             VStack(spacing: 12) {
-                Text("YesChef!")
+                Text("Cooktopus")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Text(lang.t(
                     "Your personal AI recipe generator",
@@ -186,8 +195,10 @@ struct OnboardingView: View {
         VStack(spacing: 28) {
             Spacer()
 
-            Text("👨‍🍳")
-                .font(.system(size: 80))
+            Image("MascotImage")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
 
             Text(lang.t("Packed with Features", "Özelliklerle Dolu"))
                 .font(.system(.title, design: .rounded, weight: .bold))
@@ -225,15 +236,17 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 16) {
-                Text("🚀")
-                    .font(.system(size: 80))
+                Image("MascotImage")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
 
                 Text(lang.t("Ready to Cook?", "Pişirmeye Hazır mısın?"))
                     .font(.system(.title, design: .rounded, weight: .bold))
 
                 Text(lang.t(
-                    "Let's create some amazing recipes together!",
-                    "Haydi birlikte harika tarifler oluşturalım!"
+                    "Let's cook something amazing with Cooktopus!",
+                    "Cooktopus ile harika bir şeyler pişirelim!"
                 ))
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)

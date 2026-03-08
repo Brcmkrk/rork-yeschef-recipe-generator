@@ -27,16 +27,10 @@ struct PostCookingRatingView: View {
                         )
                         .frame(width: 110, height: 110)
 
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.orange, Color(red: 0.85, green: 0.4, blue: 0.15)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .symbolEffect(.bounce, value: rated)
+                    Image("MascotImage")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
                 }
 
                 VStack(spacing: 8) {

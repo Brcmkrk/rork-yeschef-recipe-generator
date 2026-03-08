@@ -124,9 +124,11 @@ struct ProfileView: View {
 
             if likesStore.likedRecipes.isEmpty {
                 VStack(spacing: 14) {
-                    Image(systemName: "heart.slash")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.tertiary)
+                    Image("MascotImage")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 56, height: 56)
+                        .opacity(0.4)
 
                     Text(lang.t("No liked recipes yet", "Henüz beğenilen tarif yok"))
                         .font(.system(.subheadline, design: .rounded))

@@ -179,17 +179,19 @@ struct LoadingView: View {
                         }
                     }
 
-                    Text(lang.t("Our chef is preparing your recipes", "Şefimiz tariflerinizi hazırlıyor"))
+                    Text(lang.t("Cooktopus is preparing your recipes", "Cooktopus tariflerinizi hazırlıyor"))
                         .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.bottom, 16)
 
-                VStack(spacing: 8) {
-                    Image(systemName: "fork.knife")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Text("YesChef")
+                VStack(spacing: 6) {
+                    Image("MascotImage")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .opacity(0.6)
+                    Text("Cooktopus")
                         .font(.system(.caption2, design: .rounded, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }

@@ -15,7 +15,7 @@ struct ContentView: View {
             }
         } else {
             TabView {
-                Tab(lang.t("Home", "Ana Sayfa"), systemImage: "frying.pan.fill") {
+                Tab(lang.t("Home", "Ana Sayfa"), systemImage: "house.fill") {
                     HomeView(viewModel: viewModel)
                 }
                 Tab(lang.t("Profile", "Profil"), systemImage: "person.fill") {
