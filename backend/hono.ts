@@ -37,8 +37,8 @@ function getOpenAIKey(): string {
 }
 
 // ── OpenAI Helper ────────────────────────────────────────────────────────────
-const PRIMARY_MODEL = "gpt-5-mini";
-const FALLBACK_MODEL = "gpt-5.3-chat-latest";
+const PRIMARY_MODEL = "gpt-4.1-mini";
+const FALLBACK_MODEL = "gpt-4.1";
 
 function buildOpenAIRequest(
   model: string,
@@ -47,17 +47,16 @@ function buildOpenAIRequest(
   jsonMode: boolean,
   temperature?: number
 ): Record<string, any> {
-  const usesReasoningModel = model === PRIMARY_MODEL;
   const body: Record<string, any> = {
     model,
     messages,
     max_completion_tokens: maxTokens,
   };
   if (jsonMode) body.response_format = { type: "json_object" };
-  if (usesReasoningModel) {
-    body.reasoning_effort = "minimal";
-  } else if (temperature !== undefined) {
+  if (temperature !== undefined) {
     body.temperature = temperature;
+  } else {
+    body.temperature = 0.8;
   }
   return body;
 }

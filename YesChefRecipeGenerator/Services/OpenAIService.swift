@@ -50,8 +50,8 @@ nonisolated struct BackendErrorResponse: Codable, Sendable {
 class OpenAIService {
     static let shared = OpenAIService()
 
-    private let primaryDirectModel: String = "gpt-5-mini"
-    private let fallbackDirectModel: String = "gpt-5.3-chat-latest"
+    private let primaryDirectModel: String = "gpt-4.1-mini"
+    private let fallbackDirectModel: String = "gpt-4.1"
 
     private var backendBaseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
@@ -104,14 +104,13 @@ class OpenAIService {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else { throw OpenAIError.invalidURL }
 
         let chatMessages = messages.map { OpenAIChatMessage(role: $0.role, content: $0.content) }
-        let usesReasoningModel = model == primaryDirectModel
         let request = OpenAIChatRequest(
             model: model,
             response_format: jsonMode ? OpenAIResponseFormat(type: "json_object") : nil,
             messages: chatMessages,
-            temperature: usesReasoningModel ? nil : temperature,
+            temperature: temperature ?? 0.8,
             max_completion_tokens: maxTokens,
-            reasoning_effort: usesReasoningModel ? "minimal" : nil
+            reasoning_effort: nil
         )
         print("[OpenAIService] Using model: \(model)")
 
