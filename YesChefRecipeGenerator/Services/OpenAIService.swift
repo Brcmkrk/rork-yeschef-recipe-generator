@@ -50,6 +50,9 @@ nonisolated struct BackendErrorResponse: Codable, Sendable {
 class OpenAIService {
     static let shared = OpenAIService()
 
+    private let primaryDirectModel: String = "gpt-5-mini"
+    private let fallbackDirectModel: String = "gpt-5.3-chat-latest"
+
     private var backendBaseURL: String {
         let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
         guard !url.isEmpty else { return "" }
@@ -91,22 +94,24 @@ class OpenAIService {
 
     private func callOpenAIDirectly(
         messages: [(role: String, content: String)],
-        temperature: Double,
+        temperature: Double? = nil,
         maxTokens: Int,
         jsonMode: Bool = false,
-        model: String = "gpt-4.1-nano"
+        model: String = "gpt-5-mini"
     ) async throws -> String {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else { throw OpenAIError.invalidURL }
 
         let chatMessages = messages.map { OpenAIChatMessage(role: $0.role, content: $0.content) }
+        let usesReasoningModel = model == primaryDirectModel
         let request = OpenAIChatRequest(
             model: model,
             response_format: jsonMode ? OpenAIResponseFormat(type: "json_object") : nil,
             messages: chatMessages,
-            temperature: temperature,
-            max_tokens: maxTokens
+            temperature: usesReasoningModel ? nil : temperature,
+            max_completion_tokens: maxTokens,
+            reasoning_effort: usesReasoningModel ? "minimal" : nil
         )
         print("[OpenAIService] Using model: \(model)")
 
@@ -420,21 +425,21 @@ class OpenAIService {
 
         do {
             let content = try await callOpenAIDirectly(
-                messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: "gpt-4.1-nano"
+                messages: messages, maxTokens: 5500, jsonMode: true, model: primaryDirectModel
             )
             let result = try parsePreviewContent(content)
             if !result.exact_match_recipes.isEmpty || !result.extra_ingredient_recipes.isEmpty {
                 return result
             }
-            print("[OpenAIService] gpt-4.1-nano returned empty recipes, falling back to gpt-4.1-mini...")
+            print("[OpenAIService] \(primaryDirectModel) returned empty recipes, falling back to \(fallbackDirectModel)...")
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            print("[OpenAIService] gpt-4.1-nano failed: \(error.localizedDescription), falling back to gpt-4.1-mini...")
+            print("[OpenAIService] \(primaryDirectModel) failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
         }
 
         let fallbackContent = try await callOpenAIDirectly(
-            messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: "gpt-4.1-mini"
+            messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: fallbackDirectModel
         )
         return try parsePreviewContent(fallbackContent)
     }
@@ -597,17 +602,17 @@ class OpenAIService {
 
         do {
             let content = try await callOpenAIDirectly(
-                messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: "gpt-4.1-nano"
+                messages: expandMessages, maxTokens: 4000, jsonMode: true, model: primaryDirectModel
             )
             return try parseExpandContent(content)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            print("[OpenAIService] gpt-4.1-nano expand failed: \(error.localizedDescription), falling back to gpt-4.1-mini...")
+            print("[OpenAIService] \(primaryDirectModel) expand failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
         }
 
         let fallbackContent = try await callOpenAIDirectly(
-            messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: "gpt-4.1-mini"
+            messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: fallbackDirectModel
         )
         return try parseExpandContent(fallbackContent)
     }
@@ -693,29 +698,49 @@ class OpenAIService {
         let recipesJSON = try JSONEncoder().encode(recipes)
         let recipesString = String(data: recipesJSON, encoding: .utf8) ?? "[]"
 
-        let content = try await callOpenAIDirectly(
-            messages: [
-                (role: "system", content: systemPrompt),
-                (role: "user", content: recipesString)
-            ],
+        let translationMessages: [(role: String, content: String)] = [
+            (role: "system", content: systemPrompt),
+            (role: "user", content: recipesString)
+        ]
+
+        func parseTranslationContent(_ content: String) throws -> [Recipe] {
+            let cleaned = content
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let jsonData = cleaned.data(using: .utf8) else {
+                throw OpenAIError.decodingError("Could not convert translation to data")
+            }
+            do {
+                return try JSONDecoder().decode([Recipe].self, from: jsonData)
+            } catch {
+                print("[OpenAIService] Direct translate decode error: \(error)")
+                throw OpenAIError.apiError("Failed to parse translation. Please try again.")
+            }
+        }
+
+        do {
+            let content = try await callOpenAIDirectly(
+                messages: translationMessages,
+                maxTokens: 8000,
+                jsonMode: false,
+                model: primaryDirectModel
+            )
+            return try parseTranslationContent(content)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            print("[OpenAIService] \(primaryDirectModel) translate failed: \(error.localizedDescription), falling back to \(fallbackDirectModel)...")
+        }
+
+        let fallbackContent = try await callOpenAIDirectly(
+            messages: translationMessages,
             temperature: 0.3,
             maxTokens: 8000,
-            jsonMode: false
+            jsonMode: false,
+            model: fallbackDirectModel
         )
-
-        let cleaned = content
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let jsonData = cleaned.data(using: .utf8) else {
-            throw OpenAIError.decodingError("Could not convert translation to data")
-        }
-        do {
-            return try JSONDecoder().decode([Recipe].self, from: jsonData)
-        } catch {
-            print("[OpenAIService] Direct translate decode error: \(error)")
-            throw OpenAIError.apiError("Failed to parse translation. Please try again.")
-        }
+        return try parseTranslationContent(fallbackContent)
     }
 }
 
@@ -732,8 +757,9 @@ nonisolated struct OpenAIChatRequest: Codable, Sendable {
     let model: String
     let response_format: OpenAIResponseFormat?
     let messages: [OpenAIChatMessage]
-    let temperature: Double
-    let max_tokens: Int
+    let temperature: Double?
+    let max_completion_tokens: Int
+    let reasoning_effort: String?
 }
 
 nonisolated struct OpenAIChatChoice: Codable, Sendable {
