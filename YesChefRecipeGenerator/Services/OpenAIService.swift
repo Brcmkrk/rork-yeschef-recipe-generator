@@ -439,7 +439,7 @@ class OpenAIService {
         }
 
         let fallbackContent = try await callOpenAIDirectly(
-            messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: fallbackDirectModel
+            messages: messages, maxTokens: 5500, jsonMode: true, model: fallbackDirectModel
         )
         return try parsePreviewContent(fallbackContent)
     }
@@ -612,7 +612,7 @@ class OpenAIService {
         }
 
         let fallbackContent = try await callOpenAIDirectly(
-            messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: fallbackDirectModel
+            messages: expandMessages, maxTokens: 4000, jsonMode: true, model: fallbackDirectModel
         )
         return try parseExpandContent(fallbackContent)
     }
@@ -735,7 +735,6 @@ class OpenAIService {
 
         let fallbackContent = try await callOpenAIDirectly(
             messages: translationMessages,
-            temperature: 0.3,
             maxTokens: 8000,
             jsonMode: false,
             model: fallbackDirectModel
