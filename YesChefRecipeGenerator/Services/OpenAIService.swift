@@ -60,14 +60,33 @@ class OpenAIService {
         KeychainHelper.persistentDeviceId
     }
 
+    private var backendReachable: Bool = true
+    private var lastBackendCheck: Date = .distantPast
+    private let backendCheckInterval: TimeInterval = 120
+
     private var isBackendConfigured: Bool {
-        let configured = !backendBaseURL.isEmpty
+        let url = Config.EXPO_PUBLIC_RORK_API_BASE_URL
+        let configured = !url.isEmpty
+        if configured && !backendReachable && Date().timeIntervalSince(lastBackendCheck) < backendCheckInterval {
+            print("[OpenAIService] Backend URL set but recently unreachable, skipping")
+            return false
+        }
         print("[OpenAIService] Backend configured: \(configured), URL: '\(backendBaseURL)'")
         return configured
     }
 
     private var hasDirectAPIKey: Bool {
         !Config.EXPO_PUBLIC_OPENAI_API_KEY.isEmpty
+    }
+
+    private func markBackendDown() {
+        backendReachable = false
+        lastBackendCheck = Date()
+    }
+
+    private func markBackendUp() {
+        backendReachable = true
+        lastBackendCheck = Date()
     }
 
     private func callOpenAIDirectly(
@@ -130,13 +149,18 @@ class OpenAIService {
 
         if isBackendConfigured {
             do {
-                return try await generatePreviewsViaBackend(
+                let result = try await generatePreviewsViaBackend(
                     ingredients: ingredients, cuisines: cuisines, servings: servings,
                     language: language, exactCount: exactCount, extraCount: extraCount,
                     excludeTitles: excludeTitles
                 )
+                markBackendUp()
+                return result
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 print("[OpenAIService] Backend preview failed: \(error.localizedDescription), hasDirectKey=\(hasDirectAPIKey)")
+                markBackendDown()
                 if hasDirectAPIKey {
                     print("[OpenAIService] Falling back to direct OpenAI...")
                     return try await generatePreviewsDirectly(
@@ -148,7 +172,6 @@ class OpenAIService {
                 throw error
             }
         }
-        // Backend not configured — use direct API
         return try await generatePreviewsDirectly(
             ingredients: ingredients, cuisines: cuisines, servings: servings,
             language: language, exactCount: exactCount, extraCount: extraCount,
@@ -178,10 +201,17 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 300
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch {
+            print("[OpenAIService] Backend network error: \(error.localizedDescription)")
+            throw OpenAIError.apiError("Backend unreachable: \(error.localizedDescription)")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
@@ -190,6 +220,9 @@ class OpenAIService {
         let bodyString = String(data: data, encoding: .utf8) ?? ""
         print("[OpenAIService] Preview response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
 
+        guard httpResponse.statusCode != 404 else {
+            throw OpenAIError.apiError("Backend not deployed (404)")
+        }
         if httpResponse.statusCode == 429 { throw OpenAIError.rateLimited }
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
@@ -390,9 +423,14 @@ class OpenAIService {
     func expandRecipes(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
         if isBackendConfigured {
             do {
-                return try await expandRecipesViaBackend(recipes, language: language)
+                let result = try await expandRecipesViaBackend(recipes, language: language)
+                markBackendUp()
+                return result
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 print("[OpenAIService] Backend expand failed: \(error.localizedDescription), trying direct...")
+                markBackendDown()
                 if hasDirectAPIKey {
                     return try await expandRecipesDirectly(recipes, language: language)
                 }
@@ -411,10 +449,17 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 300
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch {
+            print("[OpenAIService] Expand network error: \(error.localizedDescription)")
+            throw OpenAIError.apiError("Backend unreachable: \(error.localizedDescription)")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
@@ -423,6 +468,9 @@ class OpenAIService {
         let bodyString = String(data: data, encoding: .utf8) ?? ""
         print("[OpenAIService] Expand response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
 
+        guard httpResponse.statusCode != 404 else {
+            throw OpenAIError.apiError("Backend not deployed (404)")
+        }
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {
                 throw OpenAIError.apiError(errorResponse.error)
@@ -542,8 +590,14 @@ class OpenAIService {
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
         if isBackendConfigured {
             do {
-                return try await translateViaBackend(recipes, to: language)
+                let result = try await translateViaBackend(recipes, to: language)
+                markBackendUp()
+                return result
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
+                print("[OpenAIService] Backend translate failed: \(error.localizedDescription), trying direct...")
+                markBackendDown()
                 if hasDirectAPIKey {
                     return try await translateDirectly(recipes, to: language)
                 }
@@ -562,10 +616,17 @@ class OpenAIService {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.timeoutInterval = 300
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch {
+            print("[OpenAIService] Translate network error: \(error.localizedDescription)")
+            throw OpenAIError.apiError("Backend unreachable: \(error.localizedDescription)")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
@@ -574,6 +635,9 @@ class OpenAIService {
         let bodyString = String(data: data, encoding: .utf8) ?? ""
         print("[OpenAIService] Translate response (\(httpResponse.statusCode)): \(bodyString.prefix(500))")
 
+        guard httpResponse.statusCode != 404 else {
+            throw OpenAIError.apiError("Backend not deployed (404)")
+        }
         if httpResponse.statusCode == 429 { throw OpenAIError.rateLimited }
         guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) {

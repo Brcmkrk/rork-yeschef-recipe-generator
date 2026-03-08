@@ -202,7 +202,14 @@ class RecipeViewModel {
                     try? await Task.sleep(for: .seconds(1))
                     continue
                 }
-                errorMessage = error.localizedDescription
+                let msg = error.localizedDescription
+                if msg.contains("unreachable") || msg.contains("not deployed") || msg.contains("API key not configured") {
+                    errorMessage = language == "tr"
+                        ? "Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin."
+                        : "Could not connect to server. Please check your connection and try again."
+                } else {
+                    errorMessage = msg
+                }
                 isLoading = false
                 return
             }
