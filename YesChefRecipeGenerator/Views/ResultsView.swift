@@ -289,25 +289,33 @@ struct RecipeCardView: View {
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button {
                         withAnimation(.spring(duration: 0.3)) {
                             likesStore.toggleLike(for: recipe.id, recipe: recipe)
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: likesStore.reaction(for: recipe.id) == .like ? "heart.fill" : "heart")
-                                .font(.subheadline)
-                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .pink : .secondary)
+                        let isLiked = likesStore.reaction(for: recipe.id) == .like
+                        HStack(spacing: 5) {
+                            Image(systemName: isLiked ? "heart.fill" : "heart")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(isLiked ? .white : .pink)
                                 .contentTransition(.symbolEffect(.replace))
                             let likeCount = likesStore.likesCount(for: recipe.id)
+                            Text(isLiked ? lang.t("Saved", "Kaydedildi") : lang.t("Save", "Kaydet"))
+                                .font(.system(.caption, design: .rounded, weight: .bold))
+                                .foregroundStyle(isLiked ? .white : .pink)
                             if likeCount > 0 {
-                                Text("\(likeCount)")
+                                Text("(\(likeCount))")
                                     .font(.system(.caption2, design: .rounded, weight: .semibold))
-                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .like ? .pink : .secondary)
+                                    .foregroundStyle(isLiked ? .white.opacity(0.85) : .pink.opacity(0.7))
                                     .contentTransition(.numericText())
                             }
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(isLiked ? Color.pink : Color.pink.opacity(0.1))
+                        .clipShape(.capsule)
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .like)
@@ -317,19 +325,10 @@ struct RecipeCardView: View {
                             likesStore.toggleDislike(for: recipe.id, recipe: recipe)
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: likesStore.reaction(for: recipe.id) == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                                .font(.subheadline)
-                                .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
-                                .contentTransition(.symbolEffect(.replace))
-                            let dislikeCount = likesStore.dislikesCount(for: recipe.id)
-                            if dislikeCount > 0 {
-                                Text("\(dislikeCount)")
-                                    .font(.system(.caption2, design: .rounded, weight: .semibold))
-                                    .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
-                                    .contentTransition(.numericText())
-                            }
-                        }
+                        Image(systemName: likesStore.reaction(for: recipe.id) == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                            .font(.subheadline)
+                            .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
+                            .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .dislike)

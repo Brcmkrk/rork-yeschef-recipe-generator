@@ -154,7 +154,7 @@ struct PaywallView: View {
                     planCard(
                         package: yearly,
                         title: lang.t("Yearly", "Yıllık"),
-                        priceLabel: yearly.storeProduct.localizedPriceString,
+                        priceLabel: formattedPrice(yearly.storeProduct.price, from: yearly.storeProduct),
                         subtitle: lang.t(
                             "per year (\(formattedMonthlyFromYearly(yearly)) per month)",
                             "yıllık (\(formattedMonthlyFromYearly(yearly)) / ay)"
@@ -168,7 +168,7 @@ struct PaywallView: View {
                     planCard(
                         package: monthly,
                         title: lang.t("Monthly", "Aylık"),
-                        priceLabel: monthly.storeProduct.localizedPriceString,
+                        priceLabel: formattedPrice(monthly.storeProduct.price, from: monthly.storeProduct),
                         subtitle: lang.t("per month", "aylık"),
                         badge: nil,
                         isRecommended: false
@@ -183,13 +183,18 @@ struct PaywallView: View {
         .padding(.bottom, 8)
     }
 
+    private func formattedPrice(_ price: Decimal, from product: RevenueCat.StoreProduct) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = product.currencyCode ?? "USD"
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: price as NSDecimalNumber) ?? "$\(price)"
+    }
+
     private func formattedMonthlyFromYearly(_ package: Package) -> String {
         let yearlyAmount = package.storeProduct.price
         let monthly = yearlyAmount / 12
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = package.storeProduct.priceFormatter?.locale ?? .current
-        return formatter.string(from: monthly as NSDecimalNumber) ?? "$3.33"
+        return formattedPrice(monthly, from: package.storeProduct)
     }
 
     private func planCard(
