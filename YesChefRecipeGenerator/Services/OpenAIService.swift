@@ -101,7 +101,7 @@ class OpenAIService {
 
         let chatMessages = messages.map { OpenAIChatMessage(role: $0.role, content: $0.content) }
         let request = OpenAIChatRequest(
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-nano",
             response_format: jsonMode ? OpenAIResponseFormat(type: "json_object") : nil,
             messages: chatMessages,
             temperature: temperature,

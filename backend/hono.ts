@@ -47,7 +47,7 @@ async function callOpenAI(
   if (!apiKey) throw new Error("OpenAI API key not configured");
 
   const body: Record<string, any> = {
-    model: "gpt-4o-mini",
+    model: "gpt-4.1-nano",
     messages,
     temperature,
     max_tokens: maxTokens,
