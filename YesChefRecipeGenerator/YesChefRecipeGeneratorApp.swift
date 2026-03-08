@@ -1,4 +1,5 @@
 import SwiftUI
+import RevenueCat
 
 @main
 struct YesChefRecipeGeneratorApp: App {
@@ -6,6 +7,11 @@ struct YesChefRecipeGeneratorApp: App {
     @State private var languageManager = LanguageManager()
     @State private var triedRecipesStore = TriedRecipesStore()
     @State private var statsStore = StatsStore.shared
+    @State private var subscriptionManager = SubscriptionManager.shared
+
+    init() {
+        SubscriptionManager.shared.configure()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +20,7 @@ struct YesChefRecipeGeneratorApp: App {
                 .environment(languageManager)
                 .environment(triedRecipesStore)
                 .environment(statsStore)
+                .environment(subscriptionManager)
         }
     }
 }
