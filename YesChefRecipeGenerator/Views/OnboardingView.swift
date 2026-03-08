@@ -5,7 +5,6 @@ struct OnboardingView: View {
     @Environment(LanguageManager.self) private var lang
     @State private var currentPage: Int = 0
     @State private var selectedLanguage: AppLanguage = .english
-    @State private var animateIcon: Bool = false
 
     var body: some View {
         ZStack {
@@ -140,12 +139,8 @@ struct OnboardingView: View {
         VStack(spacing: 28) {
             Spacer()
 
-            Image("MascotImage")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 160, height: 160)
-                .scaleEffect(animateIcon ? 1.08 : 0.95)
-                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animateIcon)
+            MascotView(mood: .excited, size: 150)
+                .frame(height: 170)
 
             VStack(spacing: 12) {
                 Text("Cooktopus")
@@ -188,17 +183,15 @@ struct OnboardingView: View {
             swipeHint
         }
         .padding(16)
-        .onAppear { animateIcon = true }
+
     }
 
     private var featuresPage: some View {
         VStack(spacing: 28) {
             Spacer()
 
-            Image("MascotImage")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 120, height: 120)
+            MascotView(mood: .idle, size: 100)
+                .frame(height: 120)
 
             Text(lang.t("Packed with Features", "Özelliklerle Dolu"))
                 .font(.system(.title, design: .rounded, weight: .bold))
@@ -236,10 +229,8 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 16) {
-                Image("MascotImage")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 120, height: 120)
+                MascotView(mood: .cooking, size: 110)
+                    .frame(height: 130)
 
                 Text(lang.t("Ready to Cook?", "Pişirmeye Hazır mısın?"))
                     .font(.system(.title, design: .rounded, weight: .bold))

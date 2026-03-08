@@ -185,17 +185,10 @@ struct LoadingView: View {
                 }
                 .padding(.bottom, 16)
 
-                VStack(spacing: 6) {
-                    Image("MascotImage")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .opacity(0.6)
-                    Text("Cooktopus")
-                        .font(.system(.caption2, design: .rounded, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.bottom, 32)
+                MascotView(mood: .cooking, size: 70)
+                    .frame(height: 90)
+                    .opacity(0.7)
+                    .padding(.bottom, 24)
             }
 
             VStack {

@@ -8,7 +8,6 @@ struct HomeView: View {
     @State private var pendingShowResults: Bool = false
     @FocusState private var isEditorFocused: Bool
     @Environment(LanguageManager.self) private var lang
-    @State private var headerPulse: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -45,7 +44,6 @@ struct HomeView: View {
             }
             .onAppear {
                 viewModel.language = lang.current.rawValue
-                headerPulse = true
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,27 +105,8 @@ struct HomeView: View {
 
     private var heroHeader: some View {
         VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [.orange.opacity(0.15), .orange.opacity(0.03), .clear],
-                            center: .center,
-                            startRadius: 10,
-                            endRadius: 80
-                        )
-                    )
-                    .frame(width: 120, height: 120)
-                    .scaleEffect(headerPulse ? 1.05 : 0.95)
-                    .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: headerPulse)
-
-                Image("MascotImage")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 90, height: 90)
-                    .scaleEffect(headerPulse ? 1.08 : 1.0)
-                    .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: headerPulse)
-            }
+            MascotView(mood: .idle, size: 110)
+                .frame(height: 130)
 
             Text(lang.t("What's in your kitchen?", "Mutfağında ne var?"))
                 .font(.system(.title2, design: .rounded, weight: .bold))

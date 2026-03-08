@@ -12,7 +12,11 @@ struct ResultsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 32) {
+                VStack(spacing: 24) {
+                    MascotView(mood: .presenting, size: 80)
+                        .frame(height: 100)
+                        .padding(.top, 4)
+
                     if viewModel.isExpanding {
                         HStack(spacing: 8) {
                             ProgressView()
