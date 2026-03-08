@@ -93,7 +93,8 @@ class OpenAIService {
         messages: [(role: String, content: String)],
         temperature: Double,
         maxTokens: Int,
-        jsonMode: Bool = false
+        jsonMode: Bool = false,
+        model: String = "gpt-4.1-nano"
     ) async throws -> String {
         let apiKey = Config.EXPO_PUBLIC_OPENAI_API_KEY
         guard !apiKey.isEmpty else { throw OpenAIError.noAPIKey }
@@ -101,12 +102,13 @@ class OpenAIService {
 
         let chatMessages = messages.map { OpenAIChatMessage(role: $0.role, content: $0.content) }
         let request = OpenAIChatRequest(
-            model: "gpt-4.1-nano",
+            model: model,
             response_format: jsonMode ? OpenAIResponseFormat(type: "json_object") : nil,
             messages: chatMessages,
             temperature: temperature,
             max_tokens: maxTokens
         )
+        print("[OpenAIService] Using model: \(model)")
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
@@ -348,45 +350,6 @@ class OpenAIService {
             userPrompt = "Generate \(totalCount) recipes using these ingredients: \(ingredientList)\n\nCuisine preferences: \(cuisineList)\nServings: \(servings)\n\nReturn ONLY valid JSON. All content in English.\(excludeNote)"
         }
 
-        let content = try await callOpenAIDirectly(
-            messages: [
-                (role: "system", content: systemPrompt),
-                (role: "user", content: userPrompt)
-            ],
-            temperature: 0.85,
-            maxTokens: 5500,
-            jsonMode: true
-        )
-
-        let cleaned = content
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let jsonData = cleaned.data(using: .utf8) else {
-            throw OpenAIError.decodingError("Could not convert to data")
-        }
-
-        let parsed: DirectPreviewResponse
-        do {
-            parsed = try JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData)
-        } catch {
-            print("[OpenAIService] Direct preview decode error: \(error)")
-            print("[OpenAIService] Raw JSON (first 1000): \(cleaned.prefix(1000))")
-            if let wrapper = try? JSONDecoder().decode(WrappedPreviewResponse.self, from: jsonData) {
-                let exactRaw = wrapper.recipes?.prefix(exactCount) ?? []
-                let extraRaw = wrapper.recipes?.dropFirst(exactCount).prefix(extraCount) ?? []
-                let exactRecipes = exactRaw.map { toRecipe($0) }
-                let extraRecipes = extraRaw.map { toRecipe($0) }
-                return RecipeResponse(
-                    exact_match_recipes: Array(exactRecipes),
-                    extra_ingredient_recipes: Array(extraRecipes),
-                    _cache: nil
-                )
-            }
-            throw OpenAIError.apiError("Tarif oluşturulamadı, lütfen tekrar deneyin.")
-        }
-
         func toRecipe(_ r: RawRecipe) -> Recipe {
             Recipe(
                 id: r.id ?? "recipe_\(Int(Date().timeIntervalSince1970))_\(String(Int.random(in: 10000...99999)))",
@@ -410,14 +373,70 @@ class OpenAIService {
             )
         }
 
-        let exactRecipes = (parsed.exact_match_recipes ?? []).prefix(exactCount).map { toRecipe($0) }
-        let extraRecipes = (parsed.extra_ingredient_recipes ?? []).prefix(extraCount).map { toRecipe($0) }
+        func parsePreviewContent(_ content: String) throws -> RecipeResponse {
+            let cleaned = content
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return RecipeResponse(
-            exact_match_recipes: Array(exactRecipes),
-            extra_ingredient_recipes: Array(extraRecipes),
-            _cache: nil
+            guard let jsonData = cleaned.data(using: .utf8) else {
+                throw OpenAIError.decodingError("Could not convert to data")
+            }
+
+            if let parsed = try? JSONDecoder().decode(DirectPreviewResponse.self, from: jsonData) {
+                let exactRecipes = (parsed.exact_match_recipes ?? []).prefix(exactCount).map { toRecipe($0) }
+                let extraRecipes = (parsed.extra_ingredient_recipes ?? []).prefix(extraCount).map { toRecipe($0) }
+                if !exactRecipes.isEmpty || !extraRecipes.isEmpty {
+                    return RecipeResponse(
+                        exact_match_recipes: Array(exactRecipes),
+                        extra_ingredient_recipes: Array(extraRecipes),
+                        _cache: nil
+                    )
+                }
+            }
+
+            if let wrapper = try? JSONDecoder().decode(WrappedPreviewResponse.self, from: jsonData) {
+                let exactRaw = wrapper.recipes?.prefix(exactCount) ?? []
+                let extraRaw = wrapper.recipes?.dropFirst(exactCount).prefix(extraCount) ?? []
+                let exactRecipes = exactRaw.map { toRecipe($0) }
+                let extraRecipes = extraRaw.map { toRecipe($0) }
+                if !exactRecipes.isEmpty || !extraRecipes.isEmpty {
+                    return RecipeResponse(
+                        exact_match_recipes: Array(exactRecipes),
+                        extra_ingredient_recipes: Array(extraRecipes),
+                        _cache: nil
+                    )
+                }
+            }
+
+            print("[OpenAIService] Parse failed or empty. Raw (first 1000): \(cleaned.prefix(1000))")
+            throw OpenAIError.decodingError("Empty or invalid response")
+        }
+
+        let messages: [(role: String, content: String)] = [
+            (role: "system", content: systemPrompt),
+            (role: "user", content: userPrompt)
+        ]
+
+        do {
+            let content = try await callOpenAIDirectly(
+                messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: "gpt-4.1-nano"
+            )
+            let result = try parsePreviewContent(content)
+            if !result.exact_match_recipes.isEmpty || !result.extra_ingredient_recipes.isEmpty {
+                return result
+            }
+            print("[OpenAIService] gpt-4.1-nano returned empty recipes, falling back to gpt-4.1-mini...")
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            print("[OpenAIService] gpt-4.1-nano failed: \(error.localizedDescription), falling back to gpt-4.1-mini...")
+        }
+
+        let fallbackContent = try await callOpenAIDirectly(
+            messages: messages, temperature: 0.85, maxTokens: 5500, jsonMode: true, model: "gpt-4.1-mini"
         )
+        return try parsePreviewContent(fallbackContent)
     }
 
     func expandRecipes(_ recipes: [Recipe], language: String) async throws -> [ExpandedRecipeDetail] {
@@ -560,31 +579,37 @@ class OpenAIService {
             ? "Şu tarifler için detaylı adımlar ve baharatlar oluştur:\n\(summaryString)\n\nSADECE geçerli JSON döndür. HER ŞEY TÜRKÇE."
             : "Generate detailed steps and spices for these recipes:\n\(summaryString)\n\nReturn ONLY valid JSON. All content in English."
 
-        let content = try await callOpenAIDirectly(
-            messages: [
-                (role: "system", content: systemPrompt),
-                (role: "user", content: userPrompt)
-            ],
-            temperature: 0.75,
-            maxTokens: 4000,
-            jsonMode: true
-        )
+        let expandMessages: [(role: String, content: String)] = [
+            (role: "system", content: systemPrompt),
+            (role: "user", content: userPrompt)
+        ]
 
-        let cleaned = content
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let jsonData = cleaned.data(using: .utf8) else {
-            throw OpenAIError.decodingError("Could not convert expand response to data")
+        func parseExpandContent(_ content: String) throws -> [ExpandedRecipeDetail] {
+            let cleaned = content
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let jsonData = cleaned.data(using: .utf8) else {
+                throw OpenAIError.decodingError("Could not convert expand response to data")
+            }
+            return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
         }
 
         do {
-            return try JSONDecoder().decode(ExpandResponse.self, from: jsonData).recipes
+            let content = try await callOpenAIDirectly(
+                messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: "gpt-4.1-nano"
+            )
+            return try parseExpandContent(content)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            print("[OpenAIService] Direct expand decode error: \(error)")
-            throw OpenAIError.apiError("Failed to parse recipe details. Please try again.")
+            print("[OpenAIService] gpt-4.1-nano expand failed: \(error.localizedDescription), falling back to gpt-4.1-mini...")
         }
+
+        let fallbackContent = try await callOpenAIDirectly(
+            messages: expandMessages, temperature: 0.75, maxTokens: 4000, jsonMode: true, model: "gpt-4.1-mini"
+        )
+        return try parseExpandContent(fallbackContent)
     }
 
     func translateRecipes(_ recipes: [Recipe], to language: String) async throws -> [Recipe] {
