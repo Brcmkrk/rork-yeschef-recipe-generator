@@ -27,11 +27,18 @@ struct ResultsView: View {
                     }
 
                     if !viewModel.exactMatchRecipes.isEmpty {
+                        if viewModel.isNearMatch {
+                            nearMatchBanner
+                        }
                         recipeSection(
-                            title: lang.t("Exact Match", "Birebir Eşleşme"),
-                            subtitle: lang.t("Using only your ingredients", "Sadece senin malzemelerin"),
-                            icon: "checkmark.seal.fill",
-                            color: .green,
+                            title: viewModel.isNearMatch
+                                ? lang.t("Nearly Exact Match", "Yakın Eşleşme")
+                                : lang.t("Exact Match", "Birebir Eşleşme"),
+                            subtitle: viewModel.isNearMatch
+                                ? lang.t("Close to your ingredients", "Malzemelerine yakın tarifler")
+                                : lang.t("Using only your ingredients", "Sadece senin malzemelerin"),
+                            icon: viewModel.isNearMatch ? "circle.dashed" : "checkmark.seal.fill",
+                            color: viewModel.isNearMatch ? .orange : .green,
                             recipes: viewModel.exactMatchRecipes
                         )
                     }
@@ -113,6 +120,30 @@ struct ResultsView: View {
                 }
             }
         }
+    }
+
+    private var nearMatchBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lang.t("No exact match found", "Birebir eşleşme bulunamadı"))
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(lang.t(
+                    "Not enough ingredients for an exact match. Here are the closest recipes. Tap refresh to try again.",
+                    "Birebir eşleşme için yeterli malzeme yok. İşte en yakın tarifler. Tekrar denemek için yenile butonuna basın."
+                ))
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(.rect(cornerRadius: 12))
+        .padding(.horizontal, 16)
     }
 
     private func recipeSection(

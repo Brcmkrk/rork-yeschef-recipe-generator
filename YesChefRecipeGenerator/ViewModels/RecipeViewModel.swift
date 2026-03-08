@@ -11,6 +11,7 @@ class RecipeViewModel {
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
     var isExpanding: Bool = false
+    var isNearMatch: Bool = false
     var cachedCount: Int = 0
     var errorMessage: String?
     var hasResults: Bool = false
@@ -152,6 +153,7 @@ class RecipeViewModel {
 
         isLoading = true
         isExpanding = false
+        isNearMatch = false
         errorMessage = nil
 
         let cuisineNames = selectedCuisines.map { $0.localizedName(language: language) }
@@ -168,7 +170,7 @@ class RecipeViewModel {
                     excludeTitles: excludeTitles
                 )
 
-                let exact = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
+                var exact = response.exact_match_recipes.prefix(exactMatchCount).map { var r = $0; r.language = language; return r }
                 let extra = response.extra_ingredient_recipes.prefix(extraIngredientCount).map { var r = $0; r.language = language; return r }
 
                 if exact.isEmpty && extra.isEmpty {
@@ -184,11 +186,18 @@ class RecipeViewModel {
                     return
                 }
 
+                if exact.isEmpty && !extra.isEmpty {
+                    isNearMatch = true
+                    let nearCount = min(exactMatchCount, extra.count)
+                    exact = Array(extra.prefix(nearCount))
+                    print("[RecipeVM] No exact match found, promoting \(nearCount) extra recipes as near-match")
+                }
+
                 exactMatchRecipes = Array(exact)
-                extraIngredientRecipes = Array(extra)
+                extraIngredientRecipes = Array(extra.filter { e in !exact.contains(where: { $0.id == e.id }) })
                 isLoading = false
 
-                print("[RecipeVM] Previews loaded (attempt \(attempt)): \(exactMatchRecipes.count) exact + \(extraIngredientRecipes.count) extra")
+                print("[RecipeVM] Previews loaded (attempt \(attempt)): \(exactMatchRecipes.count) exact/near + \(extraIngredientRecipes.count) extra, nearMatch=\(isNearMatch)")
 
                 hasResults = true
                 expandRecipesInBackground()
