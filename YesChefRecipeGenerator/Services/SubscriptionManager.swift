@@ -13,16 +13,13 @@ class SubscriptionManager {
 
     private init() {}
 
+    private let revenueCatAPIKey = "test_eFaXEqscsKQnuslQGEmAVDxmcDC"
+
     func configure() {
         #if DEBUG
         Purchases.logLevel = .debug
-        Purchases.configure(withAPIKey: Config.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY)
-        #else
-        let apiKey = Config.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY.isEmpty
-            ? Config.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY
-            : Config.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
-        Purchases.configure(withAPIKey: apiKey)
         #endif
+        Purchases.configure(withAPIKey: revenueCatAPIKey)
 
         Purchases.shared.delegate = PurchaseDelegateHandler.shared
         PurchaseDelegateHandler.shared.manager = self
