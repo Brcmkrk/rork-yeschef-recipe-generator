@@ -3,7 +3,6 @@ import SwiftUI
 struct ContentView: View {
     @State private var viewModel = RecipeViewModel()
     @State private var hasSeenOnboarding: Bool = UserDefaults.standard.bool(forKey: "has_seen_onboarding")
-    @State private var showInitialPaywall: Bool = false
     @Environment(LanguageManager.self) private var lang
     @Environment(SubscriptionManager.self) private var subscriptionManager
 
@@ -15,6 +14,8 @@ struct ContentView: View {
                     hasSeenOnboarding = true
                 }
             }
+        } else if !subscriptionManager.isProUser {
+            PaywallView()
         } else {
             TabView {
                 Tab(lang.t("Home", "Ana Sayfa"), systemImage: "house.fill") {
@@ -28,17 +29,6 @@ struct ContentView: View {
                 }
             }
             .tint(.orange)
-            .onAppear {
-                if !subscriptionManager.isProUser && !UserDefaults.standard.bool(forKey: "has_seen_initial_paywall") {
-                    showInitialPaywall = true
-                }
-            }
-            .sheet(isPresented: $showInitialPaywall) {
-                UserDefaults.standard.set(true, forKey: "has_seen_initial_paywall")
-            } content: {
-                PaywallView()
-                    .interactiveDismissDisabled(false)
-            }
         }
     }
 }

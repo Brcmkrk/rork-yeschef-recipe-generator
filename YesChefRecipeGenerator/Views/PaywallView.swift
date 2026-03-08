@@ -2,8 +2,8 @@ import SwiftUI
 import RevenueCat
 
 struct PaywallView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
+    @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var offerings: Offerings?
     @State private var selectedPackage: Package?
     @State private var isPurchasing: Bool = false
@@ -40,18 +40,6 @@ struct PaywallView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
             .task {
                 await loadOfferings()
             }
@@ -396,8 +384,7 @@ struct PaywallView: View {
         do {
             let result = try await Purchases.shared.purchase(package: package)
             if result.customerInfo.entitlements["Cooktopus Pro"]?.isActive == true {
-                await SubscriptionManager.shared.checkSubscriptionStatus()
-                dismiss()
+                await subscriptionManager.checkSubscriptionStatus()
             }
         } catch let error as RevenueCat.ErrorCode {
             if error != .purchaseCancelledError {
@@ -414,10 +401,8 @@ struct PaywallView: View {
         isRestoring = true
         defer { isRestoring = false }
         do {
-            try await SubscriptionManager.shared.restorePurchases()
-            if SubscriptionManager.shared.isProUser {
-                dismiss()
-            } else {
+            try await subscriptionManager.restorePurchases()
+            if !subscriptionManager.isProUser {
                 errorMessage = lang.t(
                     "No active subscription found. If you believe this is an error, please contact support.",
                     "Aktif abonelik bulunamadı. Bunun bir hata olduğunu düşünüyorsanız lütfen destek ile iletişime geçin."
