@@ -223,7 +223,7 @@ struct ProfileView: View {
                             .lineLimit(1)
 
                         if let recipeLang = recipe.language, recipeLang != lang.current.rawValue {
-                            Text(recipeLang == "tr" ? "🇹🇷" : "🇬🇧")
+                            Text(recipeLang == "tr" ? "\u{1F1F9}\u{1F1F7}" : "\u{1F1EC}\u{1F1E7}")
                                 .font(.caption2)
                         }
                     }

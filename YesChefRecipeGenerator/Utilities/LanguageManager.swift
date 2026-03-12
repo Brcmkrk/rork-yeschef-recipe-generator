@@ -13,8 +13,8 @@ nonisolated enum AppLanguage: String, CaseIterable, Sendable {
 
     var flag: String {
         switch self {
-        case .english: return "🇬🇧"
-        case .turkish: return "🇹🇷"
+        case .english: return "\u{1F1EC}\u{1F1E7}"
+        case .turkish: return "\u{1F1F9}\u{1F1F7}"
         }
     }
 }
