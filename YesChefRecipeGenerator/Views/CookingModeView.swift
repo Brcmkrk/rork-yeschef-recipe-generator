@@ -35,10 +35,16 @@ struct CookingModeView: View {
                 }
 
                 if showPostRating {
-                    PostCookingRatingView(recipe: recipe) {
-                        dismiss()
-                        onFinishCooking?()
-                    }
+                    PostCookingRatingView(
+                        recipe: recipe,
+                        onReturnToRecipes: {
+                            dismiss()
+                        },
+                        onGoToMenu: {
+                            dismiss()
+                            onFinishCooking?()
+                        }
+                    )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
