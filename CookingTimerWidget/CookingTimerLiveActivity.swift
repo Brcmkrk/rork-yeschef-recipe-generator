@@ -16,17 +16,18 @@ struct CookingTimerLiveActivity: Widget {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(context.attributes.recipeName)
                                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(.white)
                                 .lineLimit(1)
                             if context.state.totalSteps > 0 {
                                 Text("Step \(context.state.stepNumber)/\(context.state.totalSteps)")
                                     .font(.system(.caption2, design: .rounded))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.white.opacity(0.7))
                             }
                         }
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    timerDisplay(context: context)
+                    expandedTimerDisplay(context: context)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     ProgressView(value: timerProgress(context: context))
@@ -34,22 +35,25 @@ struct CookingTimerLiveActivity: Widget {
                         .padding(.top, 4)
                 }
             } compactLeading: {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(.orange)
-                    .font(.caption)
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
             } compactTrailing: {
                 if context.state.isRunning {
-                    Text(context.state.timerEndDate, style: .timer)
+                    Text(timerInterval: Date.now...context.state.timerEndDate, countsDown: true)
                         .monospacedDigit()
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .font(.system(.caption, design: .rounded, weight: .bold))
                         .foregroundStyle(.orange)
-                        .frame(minWidth: 36)
+                        .frame(minWidth: 44)
+                        .multilineTextAlignment(.trailing)
                 } else {
                     Text(formatTime(context.state.remainingSeconds))
                         .monospacedDigit()
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 36)
+                        .font(.system(.caption, design: .rounded, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(minWidth: 44)
                 }
             } minimal: {
                 Image(systemName: "flame.fill")
@@ -62,42 +66,69 @@ struct CookingTimerLiveActivity: Widget {
     @ViewBuilder
     private func lockScreenView(context: ActivityViewContext<CookingActivityAttributes>) -> some View {
         HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
                         .foregroundStyle(.orange)
+                        .font(.subheadline)
                     Text(context.attributes.recipeName)
                         .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                 }
 
                 if context.state.totalSteps > 0 {
                     Text("Step \(context.state.stepNumber) of \(context.state.totalSteps)")
                         .font(.system(.caption, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.7))
                 }
 
                 ProgressView(value: timerProgress(context: context))
                     .tint(.orange)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
             }
 
             Spacer()
 
-            timerDisplay(context: context)
+            lockScreenTimerDisplay(context: context)
         }
         .padding(16)
-        .activityBackgroundTint(.black.opacity(0.85))
+        .activityBackgroundTint(.black.opacity(0.9))
     }
 
     @ViewBuilder
-    private func timerDisplay(context: ActivityViewContext<CookingActivityAttributes>) -> some View {
+    private func lockScreenTimerDisplay(context: ActivityViewContext<CookingActivityAttributes>) -> some View {
         if context.state.isRunning {
-            Text(context.state.timerEndDate, style: .timer)
+            Text(timerInterval: Date.now...context.state.timerEndDate, countsDown: true)
+                .monospacedDigit()
+                .font(.system(.title, design: .rounded, weight: .bold))
+                .foregroundStyle(.orange)
+                .contentTransition(.numericText())
+                .multilineTextAlignment(.trailing)
+                .frame(minWidth: 70)
+        } else if context.state.remainingSeconds == 0 {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title)
+                .foregroundStyle(.green)
+        } else {
+            Text(formatTime(context.state.remainingSeconds))
+                .monospacedDigit()
+                .font(.system(.title, design: .rounded, weight: .bold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(minWidth: 70)
+        }
+    }
+
+    @ViewBuilder
+    private func expandedTimerDisplay(context: ActivityViewContext<CookingActivityAttributes>) -> some View {
+        if context.state.isRunning {
+            Text(timerInterval: Date.now...context.state.timerEndDate, countsDown: true)
                 .monospacedDigit()
                 .font(.system(.title2, design: .rounded, weight: .bold))
                 .foregroundStyle(.orange)
                 .contentTransition(.numericText())
+                .multilineTextAlignment(.trailing)
+                .frame(minWidth: 60)
         } else if context.state.remainingSeconds == 0 {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
@@ -106,7 +137,8 @@ struct CookingTimerLiveActivity: Widget {
             Text(formatTime(context.state.remainingSeconds))
                 .monospacedDigit()
                 .font(.system(.title2, design: .rounded, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(minWidth: 60)
         }
     }
 
