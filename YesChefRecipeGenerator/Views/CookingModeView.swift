@@ -1,4 +1,5 @@
 import SwiftUI
+import ActivityKit
 
 struct CookingModeView: View {
     let recipe: Recipe
@@ -9,6 +10,7 @@ struct CookingModeView: View {
     @State private var currentStep: Int = 0
     @State private var timers: [StepTimer] = []
     @State private var showPostRating: Bool = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -52,12 +54,25 @@ struct CookingModeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(lang.t("Done", "Bitti")) { dismiss() }
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundStyle(.orange)
+                    Button(lang.t("Done", "Bitti")) {
+                        endAllLiveActivities()
+                        dismiss()
+                    }
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(.orange)
                 }
             }
             .onAppear { parseTimers() }
+            .onDisappear { saveTimerStates() }
+            .onChange(of: scenePhase) { oldValue, newValue in
+                if newValue == .background {
+                    saveTimerStates()
+                } else if newValue == .active && oldValue == .background {
+                    for timer in timers where timer.isRunning {
+                        timer.recalculateFromSavedState(recipeId: recipe.id)
+                    }
+                }
+            }
         }
     }
 
@@ -147,7 +162,12 @@ struct CookingModeView: View {
             if !stepTimers.isEmpty {
                 VStack(spacing: 12) {
                     ForEach(stepTimers) { timer in
-                        TimerCardView(timer: timer)
+                        TimerCardView(
+                            timer: timer,
+                            recipeName: recipe.title,
+                            currentStep: currentStep,
+                            totalSteps: recipe.steps.count
+                        )
                     }
                 }
             }
@@ -185,6 +205,7 @@ struct CookingModeView: View {
             } else {
                 Button {
                     triedStore.add(recipe)
+                    endAllLiveActivities()
                     withAnimation(.spring(duration: 0.4)) {
                         showPostRating = true
                     }
@@ -240,28 +261,55 @@ struct CookingModeView: View {
                 }
             }
         }
+        restoreTimerStates()
+    }
+
+    private func saveTimerStates() {
+        for timer in timers {
+            timer.saveState(recipeId: recipe.id)
+        }
+    }
+
+    private func restoreTimerStates() {
+        for timer in timers {
+            timer.restoreState(recipeId: recipe.id)
+        }
+    }
+
+    private func endAllLiveActivities() {
+        for timer in timers {
+            timer.endLiveActivity()
+            timer.clearSavedState(recipeId: recipe.id)
+        }
     }
 }
 
 @Observable
 class StepTimer: Identifiable {
-    let id = UUID()
+    let id: UUID
     let stepIndex: Int
     let totalSeconds: Int
     var remainingSeconds: Int
     var isRunning: Bool = false
     var isComplete: Bool = false
     private var timerTask: Task<Void, Never>?
+    private var startDate: Date?
+    private var activity: Activity<CookingActivityAttributes>?
 
     init(stepIndex: Int, totalSeconds: Int) {
+        self.id = UUID()
         self.stepIndex = stepIndex
         self.totalSeconds = totalSeconds
         self.remainingSeconds = totalSeconds
     }
 
     var displayTime: String {
-        let mins = remainingSeconds / 60
+        let hrs = remainingSeconds / 3600
+        let mins = (remainingSeconds % 3600) / 60
         let secs = remainingSeconds % 60
+        if hrs > 0 {
+            return String(format: "%d:%02d:%02d", hrs, mins, secs)
+        }
         return String(format: "%d:%02d", mins, secs)
     }
 
@@ -273,34 +321,180 @@ class StepTimer: Identifiable {
     func start() {
         guard !isRunning && remainingSeconds > 0 else { return }
         isRunning = true
+        startDate = Date()
         timerTask = Task { @MainActor in
             while remainingSeconds > 0 && isRunning {
                 try? await Task.sleep(for: .seconds(1))
                 guard isRunning else { break }
                 remainingSeconds -= 1
+                updateLiveActivity()
             }
             if remainingSeconds == 0 {
                 isComplete = true
                 isRunning = false
+                endLiveActivity()
             }
         }
     }
 
     func pause() {
         isRunning = false
+        startDate = nil
         timerTask?.cancel()
+        updateLiveActivity()
     }
 
     func reset() {
         isRunning = false
         isComplete = false
+        startDate = nil
         timerTask?.cancel()
         remainingSeconds = totalSeconds
+        endLiveActivity()
+    }
+
+    func saveState(recipeId: String) {
+        let key = "timer_\(recipeId)_\(stepIndex)_\(totalSeconds)"
+        if isRunning, let startDate {
+            let elapsed = Int(Date().timeIntervalSince(startDate))
+            let saved = remainingSeconds
+            UserDefaults.standard.set(saved, forKey: "\(key)_remaining")
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(key)_savedAt")
+            UserDefaults.standard.set(true, forKey: "\(key)_wasRunning")
+            _ = elapsed
+        } else if remainingSeconds < totalSeconds {
+            UserDefaults.standard.set(remainingSeconds, forKey: "\(key)_remaining")
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(key)_savedAt")
+            UserDefaults.standard.set(false, forKey: "\(key)_wasRunning")
+        }
+        UserDefaults.standard.set(isComplete, forKey: "\(key)_complete")
+    }
+
+    func restoreState(recipeId: String) {
+        let key = "timer_\(recipeId)_\(stepIndex)_\(totalSeconds)"
+        let savedRemaining = UserDefaults.standard.integer(forKey: "\(key)_remaining")
+        let savedAt = UserDefaults.standard.double(forKey: "\(key)_savedAt")
+        let wasRunning = UserDefaults.standard.bool(forKey: "\(key)_wasRunning")
+        let wasComplete = UserDefaults.standard.bool(forKey: "\(key)_complete")
+
+        guard savedAt > 0 else { return }
+
+        if wasComplete {
+            remainingSeconds = 0
+            isComplete = true
+            isRunning = false
+            return
+        }
+
+        if wasRunning {
+            let elapsed = Int(Date().timeIntervalSince1970 - savedAt)
+            let newRemaining = max(0, savedRemaining - elapsed)
+            remainingSeconds = newRemaining
+            if newRemaining == 0 {
+                isComplete = true
+                isRunning = false
+            } else {
+                start()
+            }
+        } else if savedRemaining > 0 && savedRemaining < totalSeconds {
+            remainingSeconds = savedRemaining
+        }
+    }
+
+    func recalculateFromSavedState(recipeId: String) {
+        let key = "timer_\(recipeId)_\(stepIndex)_\(totalSeconds)"
+        let savedRemaining = UserDefaults.standard.integer(forKey: "\(key)_remaining")
+        let savedAt = UserDefaults.standard.double(forKey: "\(key)_savedAt")
+        let wasRunning = UserDefaults.standard.bool(forKey: "\(key)_wasRunning")
+        guard savedAt > 0, wasRunning else { return }
+        let elapsed = Int(Date().timeIntervalSince1970 - savedAt)
+        let newRemaining = max(0, savedRemaining - elapsed)
+        remainingSeconds = newRemaining
+        if newRemaining == 0 {
+            isComplete = true
+            isRunning = false
+            timerTask?.cancel()
+            endLiveActivity()
+        }
+    }
+
+    func clearSavedState(recipeId: String) {
+        let key = "timer_\(recipeId)_\(stepIndex)_\(totalSeconds)"
+        UserDefaults.standard.removeObject(forKey: "\(key)_remaining")
+        UserDefaults.standard.removeObject(forKey: "\(key)_savedAt")
+        UserDefaults.standard.removeObject(forKey: "\(key)_wasRunning")
+        UserDefaults.standard.removeObject(forKey: "\(key)_complete")
+    }
+
+    func startLiveActivity(recipeName: String, stepNumber: Int, totalSteps: Int) {
+        guard activity == nil else {
+            updateLiveActivity()
+            return
+        }
+
+        let authInfo = ActivityAuthorizationInfo()
+        guard authInfo.areActivitiesEnabled else { return }
+
+        let attributes = CookingActivityAttributes(
+            recipeName: recipeName,
+            totalSeconds: totalSeconds
+        )
+        let endDate = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+        let state = CookingActivityAttributes.ContentState(
+            remainingSeconds: remainingSeconds,
+            timerEndDate: endDate,
+            isRunning: isRunning,
+            stepNumber: stepNumber,
+            totalSteps: totalSteps
+        )
+
+        do {
+            activity = try Activity.request(
+                attributes: attributes,
+                content: .init(state: state, staleDate: endDate.addingTimeInterval(60)),
+                pushType: nil
+            )
+        } catch {
+            print("Failed to start Live Activity: \(error)")
+        }
+    }
+
+    func updateLiveActivity() {
+        guard let activity else { return }
+        let endDate = Date().addingTimeInterval(TimeInterval(remainingSeconds))
+        let state = CookingActivityAttributes.ContentState(
+            remainingSeconds: remainingSeconds,
+            timerEndDate: endDate,
+            isRunning: isRunning,
+            stepNumber: stepIndex + 1,
+            totalSteps: 0
+        )
+        Task {
+            await activity.update(.init(state: state, staleDate: nil))
+        }
+    }
+
+    func endLiveActivity() {
+        guard let activity else { return }
+        let finalState = CookingActivityAttributes.ContentState(
+            remainingSeconds: 0,
+            timerEndDate: Date(),
+            isRunning: false,
+            stepNumber: stepIndex + 1,
+            totalSteps: 0
+        )
+        Task {
+            await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+        }
+        self.activity = nil
     }
 }
 
 struct TimerCardView: View {
     let timer: StepTimer
+    let recipeName: String
+    let currentStep: Int
+    let totalSteps: Int
     @Environment(LanguageManager.self) private var lang
 
     var body: some View {
@@ -341,6 +535,11 @@ struct TimerCardView: View {
                 } else {
                     Button {
                         timer.start()
+                        timer.startLiveActivity(
+                            recipeName: recipeName,
+                            stepNumber: currentStep + 1,
+                            totalSteps: totalSteps
+                        )
                     } label: {
                         Label(lang.t("Start", "Başlat"), systemImage: "play.fill")
                             .font(.system(.subheadline, design: .rounded, weight: .semibold))
