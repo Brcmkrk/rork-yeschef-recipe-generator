@@ -19,10 +19,10 @@ class FoodGameState {
     var recipesReady: Bool = false
     var showBanner: Bool = false
 
-    private let foodEmojis = ["🍕", "🌮", "🍣", "🥐", "🍔", "🍩", "🥑", "🍇", "🧁", "🍗", "🥟", "🍰", "🫐", "🥙", "🍝"]
+    private let foodEmojis = ["\u{1F355}", "\u{1F32E}", "\u{1F363}", "\u{1F950}", "\u{1F354}", "\u{1F369}", "\u{1F951}", "\u{1F347}", "\u{1F9C1}", "\u{1F357}", "\u{1F95F}", "\u{1F370}", "\u{1FAD0}", "\u{1F959}", "\u{1F35D}"]
 
     func spawnFood(in width: CGFloat) {
-        let emoji = foodEmojis.randomElement() ?? "🍕"
+        let emoji = foodEmojis.randomElement() ?? "\u{1F355}"
         let x = CGFloat.random(in: 40...(width - 40))
         let speed = CGFloat.random(in: 1.5...3.5)
         let size = CGFloat.random(in: 28...44)
