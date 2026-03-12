@@ -295,6 +295,9 @@ class StepTimer: Identifiable {
     private var timerTask: Task<Void, Never>?
     private var startDate: Date?
     private var activity: Activity<CookingActivityAttributes>?
+    private var liveActivityRecipeName: String = ""
+    private var liveActivityStepNumber: Int = 0
+    private var liveActivityTotalSteps: Int = 0
 
     init(stepIndex: Int, totalSeconds: Int) {
         self.id = UUID()
@@ -427,6 +430,10 @@ class StepTimer: Identifiable {
     }
 
     func startLiveActivity(recipeName: String, stepNumber: Int, totalSteps: Int) {
+        liveActivityRecipeName = recipeName
+        liveActivityStepNumber = stepNumber
+        liveActivityTotalSteps = totalSteps
+
         guard activity == nil else {
             updateLiveActivity()
             return
@@ -466,8 +473,8 @@ class StepTimer: Identifiable {
             remainingSeconds: remainingSeconds,
             timerEndDate: endDate,
             isRunning: isRunning,
-            stepNumber: stepIndex + 1,
-            totalSteps: 0
+            stepNumber: liveActivityStepNumber,
+            totalSteps: liveActivityTotalSteps
         )
         Task {
             await activity.update(.init(state: state, staleDate: nil))
@@ -480,8 +487,8 @@ class StepTimer: Identifiable {
             remainingSeconds: 0,
             timerEndDate: Date(),
             isRunning: false,
-            stepNumber: stepIndex + 1,
-            totalSteps: 0
+            stepNumber: liveActivityStepNumber,
+            totalSteps: liveActivityTotalSteps
         )
         Task {
             await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)

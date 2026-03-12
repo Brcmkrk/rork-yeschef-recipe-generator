@@ -56,9 +56,16 @@ struct CookingTimerLiveActivity: Widget {
                         .frame(minWidth: 44)
                 }
             } minimal: {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(.orange)
-                    .font(.caption2)
+                if context.state.isRunning {
+                    Text(timerInterval: Date.now...context.state.timerEndDate, countsDown: true)
+                        .monospacedDigit()
+                        .font(.system(.caption2, design: .rounded, weight: .bold))
+                        .foregroundStyle(.orange)
+                } else {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption2)
+                }
             }
         }
     }
