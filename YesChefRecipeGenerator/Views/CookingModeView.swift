@@ -61,8 +61,11 @@ struct CookingModeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(lang.t("Done", "Bitti")) {
+                        triedStore.add(recipe)
                         endAllLiveActivities()
-                        dismiss()
+                        withAnimation(.spring(duration: 0.4)) {
+                            showPostRating = true
+                        }
                     }
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.orange)
