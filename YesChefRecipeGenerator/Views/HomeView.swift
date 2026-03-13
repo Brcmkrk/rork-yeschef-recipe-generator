@@ -444,10 +444,6 @@ struct HomeView: View {
         recipesReady = false
         showLoading = true
 
-        if !subscriptionManager.isProUser {
-            freeRecipeTracker.incrementUsage()
-        }
-
         Task {
             await viewModel.generateRecipes()
             if viewModel.hasResults && viewModel.errorMessage == nil {
