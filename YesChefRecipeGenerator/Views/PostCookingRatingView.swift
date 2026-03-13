@@ -132,8 +132,7 @@ struct PostCookingRatingView: View {
 
             Spacer()
 
-            if rated {
-                VStack(spacing: 12) {
+            VStack(spacing: 12) {
                     Button {
                         showReturnConfirmation = true
                     } label: {
@@ -167,10 +166,8 @@ struct PostCookingRatingView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
         }
         .background(
             LinearGradient(
@@ -185,17 +182,14 @@ struct PostCookingRatingView: View {
             isPresented: $showReturnConfirmation
         ) {
             Button(lang.t("Yes, Return", "Evet, Dön"), role: .destructive) {
-                if isFreeTier {
-                    FreeRecipeTracker.shared.incrementUsage()
-                }
                 onReturnToRecipes()
             }
             Button(lang.t("Cancel", "İptal"), role: .cancel) {}
         } message: {
             if isFreeTier {
                 Text(lang.t(
-                    "This will use 1 of your \(FreeRecipeTracker.shared.remainingFreeRecipes) free recipes.",
-                    "Bu, \(FreeRecipeTracker.shared.remainingFreeRecipes) ücretsiz tarifinden 1'ini kullanacak."
+                    "Your free recipe has already been counted. Are you sure you want to leave?",
+                    "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
                 ))
             } else {
                 Text(lang.t("You'll return to the recipes.", "Tariflere döneceksin."))
@@ -206,17 +200,14 @@ struct PostCookingRatingView: View {
             isPresented: $showMenuConfirmation
         ) {
             Button(lang.t("Go to Menu", "Ana Menüye Git"), role: .destructive) {
-                if isFreeTier {
-                    FreeRecipeTracker.shared.incrementUsage()
-                }
                 onGoToMenu()
             }
             Button(lang.t("Cancel", "İptal"), role: .cancel) {}
         } message: {
             if isFreeTier {
                 Text(lang.t(
-                    "This will use 1 of your \(FreeRecipeTracker.shared.remainingFreeRecipes) free recipes.",
-                    "Bu, \(FreeRecipeTracker.shared.remainingFreeRecipes) ücretsiz tarifinden 1'ini kullanacak."
+                    "Your free recipe has already been counted. Are you sure you want to leave?",
+                    "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
                 ))
             } else {
                 Text(lang.t("You'll return to the main menu.", "Ana menüye döneceksin."))

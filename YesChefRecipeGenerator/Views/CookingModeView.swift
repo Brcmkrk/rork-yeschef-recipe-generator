@@ -10,7 +10,13 @@ struct CookingModeView: View {
     @State private var currentStep: Int = 0
     @State private var timers: [StepTimer] = []
     @State private var showPostRating: Bool = false
+    @State private var showReturnConfirmation: Bool = false
+    @State private var showMenuConfirmation: Bool = false
     @Environment(\.scenePhase) private var scenePhase
+
+    private var isFreeTier: Bool {
+        !SubscriptionManager.shared.isProUser
+    }
 
     var body: some View {
         NavigationStack {
@@ -58,6 +64,65 @@ struct CookingModeView: View {
             )
             .navigationTitle(lang.t("Cooking Mode", "Pişirme Modu"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showReturnConfirmation = true
+                    } label: {
+                        Image(systemName: "arrow.uturn.left")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(.orange)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showMenuConfirmation = true
+                    } label: {
+                        Image(systemName: "house.fill")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(.orange)
+                }
+            }
+            .alert(
+                lang.t("Are you sure?", "Emin misin?"),
+                isPresented: $showReturnConfirmation
+            ) {
+                Button(lang.t("Yes, Return", "Evet, Dön"), role: .destructive) {
+                    endAllLiveActivities()
+                    dismiss()
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                if isFreeTier {
+                    Text(lang.t(
+                        "Your free recipe has already been counted. Are you sure you want to leave?",
+                        "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
+                    ))
+                } else {
+                    Text(lang.t("You'll return to the recipes.", "Tariflere döneceksin."))
+                }
+            }
+            .alert(
+                lang.t("Are you sure?", "Emin misin?"),
+                isPresented: $showMenuConfirmation
+            ) {
+                Button(lang.t("Go to Menu", "Ana Menüye Git"), role: .destructive) {
+                    endAllLiveActivities()
+                    dismiss()
+                    onFinishCooking?()
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                if isFreeTier {
+                    Text(lang.t(
+                        "Your free recipe has already been counted. Are you sure you want to leave?",
+                        "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
+                    ))
+                } else {
+                    Text(lang.t("You'll return to the main menu.", "Ana menüye döneceksin."))
+                }
+            }
             .onAppear { parseTimers() }
             .onDisappear { saveTimerStates() }
             .onChange(of: scenePhase) { oldValue, newValue in
