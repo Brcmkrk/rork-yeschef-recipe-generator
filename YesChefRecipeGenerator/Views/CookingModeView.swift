@@ -58,19 +58,6 @@ struct CookingModeView: View {
             )
             .navigationTitle(lang.t("Cooking Mode", "Pişirme Modu"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(lang.t("Done", "Bitti")) {
-                        triedStore.add(recipe)
-                        endAllLiveActivities()
-                        withAnimation(.spring(duration: 0.4)) {
-                            showPostRating = true
-                        }
-                    }
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundStyle(.orange)
-                }
-            }
             .onAppear { parseTimers() }
             .onDisappear { saveTimerStates() }
             .onChange(of: scenePhase) { oldValue, newValue in

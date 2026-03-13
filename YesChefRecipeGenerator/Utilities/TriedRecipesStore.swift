@@ -14,9 +14,6 @@ class TriedRecipesStore {
     func add(_ recipe: Recipe) {
         StatsStore.shared.incrementTried()
         if !recipes.contains(where: { $0.id == recipe.id }) {
-            if !SubscriptionManager.shared.isProUser {
-                FreeRecipeTracker.shared.incrementUsage()
-            }
             recipes.insert(recipe, at: 0)
             saveLocal()
         }
