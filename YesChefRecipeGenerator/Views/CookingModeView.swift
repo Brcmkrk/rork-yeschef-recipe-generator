@@ -10,6 +10,7 @@ struct CookingModeView: View {
     @State private var currentStep: Int = 0
     @State private var timers: [StepTimer] = []
     @State private var showPostRating: Bool = false
+    @State private var showMenuConfirmation: Bool = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -60,16 +61,40 @@ struct CookingModeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(lang.t("Done", "Bitti")) {
-                        triedStore.add(recipe)
-                        endAllLiveActivities()
-                        withAnimation(.spring(duration: 0.4)) {
-                            showPostRating = true
+                    Menu {
+                        Button {
+                            triedStore.add(recipe)
+                            endAllLiveActivities()
+                            dismiss()
+                        } label: {
+                            Label(lang.t("Return to Recipes", "Tariflere Dön"), systemImage: "arrow.uturn.left")
                         }
+                        Button {
+                            showMenuConfirmation = true
+                        } label: {
+                            Label(lang.t("Go to Menu", "Ana Menüye Git"), systemImage: "house.fill")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.title3)
+                            .foregroundStyle(.orange)
                     }
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundStyle(.orange)
                 }
+            }
+            .alert(
+                lang.t("Are you sure?", "Emin misin?"),
+                isPresented: $showMenuConfirmation
+            ) {
+                Button(lang.t("Go to Menu", "Ana Menüye Git"), role: .destructive) {
+                    triedStore.add(recipe)
+                    endAllLiveActivities()
+                    dismiss()
+                    onFinishCooking?()
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                Text(lang.t("You'll return to the main menu.", "Ana menüye döneceksin."))
             }
             .onAppear { parseTimers() }
             .onDisappear { saveTimerStates() }

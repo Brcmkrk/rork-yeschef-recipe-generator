@@ -10,6 +10,7 @@ struct RecipeDetailView: View {
     @State private var showCookingMode: Bool = false
     @State private var copied: Bool = false
     @State private var expandedSpice: String?
+    @State private var hasStartedCooking: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -20,11 +21,15 @@ struct RecipeDetailView: View {
                     ingredientsCard
 
                     if recipe.isFullyLoaded {
-                        spicesCard
-                        if !recipe.required_extra_ingredients.isEmpty {
-                            extraIngredientsCard
+                        if hasStartedCooking {
+                            spicesCard
+                            if !recipe.required_extra_ingredients.isEmpty {
+                                extraIngredientsCard
+                            }
+                            stepsCard
+                        } else {
+                            maskedContentCard
                         }
-                        stepsCard
                         actionButtons
                     } else {
                         loadingDetailsCard
@@ -44,7 +49,7 @@ struct RecipeDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    if recipe.isFullyLoaded {
+                    if recipe.isFullyLoaded && hasStartedCooking {
                         Button {
                             UIPasteboard.general.string = viewModel.copyRecipeText(recipe)
                             copied = true
@@ -321,8 +326,66 @@ struct RecipeDetailView: View {
         .clipShape(.rect(cornerRadius: 18))
     }
 
+    private var maskedContentCard: some View {
+        VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "list.number")
+                        .foregroundStyle(.blue)
+                    Text(lang.t("Steps", "Adımlar"))
+                        .font(.system(.headline, design: .rounded))
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(0..<min(3, recipe.steps.count), id: \.self) { _ in
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color(.tertiarySystemFill))
+                                .frame(width: 28, height: 28)
+                            VStack(alignment: .leading, spacing: 4) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(.tertiarySystemFill))
+                                    .frame(height: 14)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(.quaternarySystemFill))
+                                    .frame(width: 180, height: 14)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 18))
+            .overlay {
+                ZStack {
+                    Color(.secondarySystemGroupedBackground).opacity(0.6)
+                    VStack(spacing: 10) {
+                        Image(systemName: "lock.fill")
+                            .font(.title2)
+                            .foregroundStyle(.orange)
+                        Text(lang.t("Start cooking to see the steps", "Adımları görmek için pişirmeye başla"))
+                            .font(.system(.subheadline, design: .rounded, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .clipShape(.rect(cornerRadius: 18))
+            }
+        }
+    }
+
     private var actionButtons: some View {
         Button {
+            if !hasStartedCooking {
+                if !SubscriptionManager.shared.isProUser {
+                    FreeRecipeTracker.shared.incrementUsage()
+                }
+                withAnimation(.spring(duration: 0.3)) {
+                    hasStartedCooking = true
+                }
+            }
             showCookingMode = true
         } label: {
             HStack(spacing: 10) {
