@@ -3,19 +3,27 @@ import SwiftUI
 struct ContentView: View {
     @State private var viewModel = RecipeViewModel()
     @State private var hasSeenOnboarding: Bool = UserDefaults.standard.bool(forKey: "has_seen_onboarding")
+    @State private var showPaywall: Bool = false
     @Environment(LanguageManager.self) private var lang
     @Environment(SubscriptionManager.self) private var subscriptionManager
 
     var body: some View {
         if !hasSeenOnboarding {
-            OnboardingView {
-                UserDefaults.standard.set(true, forKey: "has_seen_onboarding")
-                withAnimation(.spring(duration: 0.5)) {
-                    hasSeenOnboarding = true
+            OnboardingView(
+                onComplete: {
+                    UserDefaults.standard.set(true, forKey: "has_seen_onboarding")
+                    withAnimation(.spring(duration: 0.5)) {
+                        hasSeenOnboarding = true
+                    }
+                },
+                onUpgrade: {
+                    UserDefaults.standard.set(true, forKey: "has_seen_onboarding")
+                    withAnimation(.spring(duration: 0.5)) {
+                        hasSeenOnboarding = true
+                        showPaywall = true
+                    }
                 }
-            }
-        } else if !subscriptionManager.isProUser {
-            PaywallView()
+            )
         } else {
             TabView {
                 Tab(lang.t("Home", "Ana Sayfa"), systemImage: "house.fill") {
@@ -29,6 +37,9 @@ struct ContentView: View {
                 }
             }
             .tint(.orange)
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
         }
     }
 }

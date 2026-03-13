@@ -6,8 +6,11 @@ struct HomeView: View {
     @State private var showLoading: Bool = false
     @State private var recipesReady: Bool = false
     @State private var pendingShowResults: Bool = false
+    @State private var showPaywall: Bool = false
     @FocusState private var isEditorFocused: Bool
     @Environment(LanguageManager.self) private var lang
+    @Environment(SubscriptionManager.self) private var subscriptionManager
+    @Environment(FreeRecipeTracker.self) private var freeRecipeTracker
 
     var body: some View {
         NavigationStack {
@@ -99,6 +102,9 @@ struct HomeView: View {
                         }
                     }
                 })
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
             }
         }
     }
@@ -386,20 +392,78 @@ struct HomeView: View {
         .sensoryFeedback(.selection, trigger: isSelected)
     }
 
+    private var freeRecipesBanner: some View {
+        Group {
+            if !subscriptionManager.isProUser {
+                HStack(spacing: 10) {
+                    Image(systemName: "gift.fill")
+                        .foregroundStyle(.orange)
+                    Text(lang.t(
+                        "\(freeRecipeTracker.remainingFreeRecipes) free recipes remaining",
+                        "\(freeRecipeTracker.remainingFreeRecipes) ücretsiz tarif kaldı"
+                    ))
+                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+
+                    Spacer()
+
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        Text(lang.t("Upgrade", "Yükselt"))
+                            .font(.system(.caption, design: .rounded, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                LinearGradient(
+                                    colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .clipShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(14)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(.rect(cornerRadius: 14))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            }
+        }
+    }
+
+    private func handleGenerate() {
+        if !subscriptionManager.isProUser && freeRecipeTracker.hasReachedLimit {
+            showPaywall = true
+            return
+        }
+
+        isEditorFocused = false
+        recipesReady = false
+        showLoading = true
+
+        if !subscriptionManager.isProUser {
+            freeRecipeTracker.incrementUsage()
+        }
+
+        Task {
+            await viewModel.generateRecipes()
+            if viewModel.hasResults && viewModel.errorMessage == nil {
+                recipesReady = true
+            } else {
+                showLoading = false
+            }
+        }
+    }
+
     private var generateButton: some View {
         VStack(spacing: 12) {
+            freeRecipesBanner
+
             Button {
-                isEditorFocused = false
-                recipesReady = false
-                showLoading = true
-                Task {
-                    await viewModel.generateRecipes()
-                    if viewModel.hasResults && viewModel.errorMessage == nil {
-                        recipesReady = true
-                    } else {
-                        showLoading = false
-                    }
-                }
+                handleGenerate()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "sparkles")
@@ -437,16 +501,7 @@ struct HomeView: View {
                         .multilineTextAlignment(.center)
 
                     Button(lang.t("Retry", "Tekrar Dene")) {
-                        recipesReady = false
-                        showLoading = true
-                        Task {
-                            await viewModel.generateRecipes()
-                            if viewModel.hasResults && viewModel.errorMessage == nil {
-                                recipesReady = true
-                            } else {
-                                showLoading = false
-                            }
-                        }
+                        handleGenerate()
                     }
                     .font(.system(.footnote, design: .rounded, weight: .semibold))
                 }

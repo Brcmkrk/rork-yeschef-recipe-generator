@@ -8,6 +8,7 @@ struct YesChefRecipeGeneratorApp: App {
     @State private var triedRecipesStore = TriedRecipesStore()
     @State private var statsStore = StatsStore.shared
     @State private var subscriptionManager = SubscriptionManager.shared
+    @State private var freeRecipeTracker = FreeRecipeTracker.shared
 
     init() {
         SubscriptionManager.shared.configure()
@@ -21,6 +22,7 @@ struct YesChefRecipeGeneratorApp: App {
                 .environment(triedRecipesStore)
                 .environment(statsStore)
                 .environment(subscriptionManager)
+                .environment(freeRecipeTracker)
         }
     }
 }

@@ -96,6 +96,8 @@ struct PaywallView: View {
         VStack(spacing: 14) {
             featureRow(icon: "sparkles", color: .orange,
                        text: lang.t("Unlimited AI recipe generation", "Sınırsız AI tarif oluşturma"))
+            featureRow(icon: "nosign", color: .red,
+                       text: lang.t("No ads", "Reklam yok"))
             featureRow(icon: "heart.fill", color: .pink,
                        text: lang.t("Save unlimited favorites", "Sınırsız favori kaydet"))
             featureRow(icon: "globe", color: .blue,
