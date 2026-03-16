@@ -3,10 +3,13 @@ import SwiftUI
 @Observable
 class RecipeViewModel {
     var ingredientsText: String = ""
+    var selectedIngredients: [String] = []
     var selectedCuisines: Set<Cuisine> = []
+    var selectedCuisine: Cuisine?
     var servings: Int = 2
     var exactMatchCount: Int = 2
     var extraIngredientCount: Int = 2
+    var useStrictMatch: Bool = false
     var exactMatchRecipes: [Recipe] = []
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
@@ -29,6 +32,38 @@ class RecipeViewModel {
 
     var canGenerate: Bool {
         !ingredientsList.isEmpty && !selectedCuisines.isEmpty && !isLoading
+    }
+
+    var canGenerateFromFlow: Bool {
+        !selectedIngredients.isEmpty && selectedCuisine != nil && !isLoading
+    }
+
+    func syncFlowToGeneration() {
+        ingredientsText = selectedIngredients.joined(separator: ", ")
+        if let cuisine = selectedCuisine {
+            selectedCuisines = [cuisine]
+        }
+        if useStrictMatch {
+            exactMatchCount = 4
+            extraIngredientCount = 0
+        } else {
+            exactMatchCount = 2
+            extraIngredientCount = 2
+        }
+    }
+
+    func addIngredient(_ ingredient: String) {
+        let trimmed = ingredient.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !selectedIngredients.contains(where: { $0.lowercased() == trimmed.lowercased() }) else { return }
+        selectedIngredients.append(trimmed)
+    }
+
+    func removeIngredient(_ ingredient: String) {
+        selectedIngredients.removeAll { $0 == ingredient }
+    }
+
+    func fillRandomIngredients(language: String) {
+        selectedIngredients = IngredientPool.random(count: Int.random(in: 4...7), language: language)
     }
 
     var language: String = "en"
