@@ -39,7 +39,7 @@ class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             self.adDismissedContinuation = continuation
-            ad.present(from: rootVC)
+            ad.present(fromRootViewController: rootVC)
         }
     }
 
