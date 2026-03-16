@@ -14,11 +14,8 @@ struct YesChefRecipeGeneratorApp: App {
 
     init() {
         SubscriptionManager.shared.configure()
-        Task {
-            await MobileAds.shared.start()
-            await MainActor.run {
-                InterstitialAdManager.shared.loadAd()
-            }
+        GADMobileAds.sharedInstance().start { _ in
+            InterstitialAdManager.shared.loadAd()
         }
     }
 
