@@ -14,8 +14,12 @@ struct YesChefRecipeGeneratorApp: App {
 
     init() {
         SubscriptionManager.shared.configure()
-        MobileAds.shared.start(completionHandler: nil)
-        InterstitialAdManager.shared.loadAd()
+        Task {
+            await MobileAds.shared.start()
+            await MainActor.run {
+                InterstitialAdManager.shared.loadAd()
+            }
+        }
     }
 
     var body: some Scene {
