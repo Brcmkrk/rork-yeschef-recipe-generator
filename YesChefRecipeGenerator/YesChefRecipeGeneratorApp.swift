@@ -14,7 +14,7 @@ struct YesChefRecipeGeneratorApp: App {
 
     init() {
         SubscriptionManager.shared.configure()
-        GADMobileAds.sharedInstance().start(completionHandler: nil)
+        MobileAds.shared.start(completionHandler: nil)
         InterstitialAdManager.shared.loadAd()
     }
 

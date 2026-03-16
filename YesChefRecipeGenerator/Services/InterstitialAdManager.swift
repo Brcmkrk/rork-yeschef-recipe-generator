@@ -2,10 +2,10 @@ import SwiftUI
 import GoogleMobileAds
 
 @Observable
-class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
+class InterstitialAdManager: NSObject, FullScreenContentDelegate {
     static let shared = InterstitialAdManager()
 
-    private var interstitialAd: GADInterstitialAd?
+    private var interstitialAd: InterstitialAd?
     var isAdLoaded: Bool = false
     private var adDismissedContinuation: CheckedContinuation<Void, Never>?
 
@@ -20,17 +20,16 @@ class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
     }
 
     func loadAd() {
-        let request = GADRequest()
-        GADInterstitialAd.load(withAdUnitID: adUnitID, request: request) { [weak self] ad, error in
-            guard let self else { return }
-            if let error {
+        Task {
+            do {
+                let ad = try await InterstitialAd.load(with: adUnitID, request: Request())
+                self.interstitialAd = ad
+                self.interstitialAd?.fullScreenContentDelegate = self
+                self.isAdLoaded = true
+            } catch {
                 print("[AdMob] Failed to load interstitial: \(error.localizedDescription)")
                 self.isAdLoaded = false
-                return
             }
-            self.interstitialAd = ad
-            self.interstitialAd?.fullScreenContentDelegate = self
-            self.isAdLoaded = true
         }
     }
 
@@ -40,7 +39,7 @@ class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             self.adDismissedContinuation = continuation
-            ad.present(fromRootViewController: rootVC)
+            ad.present(from: rootVC)
         }
     }
 
@@ -54,7 +53,7 @@ class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
         return top
     }
 
-    nonisolated func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
+    nonisolated func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
         Task { @MainActor in
             self.interstitialAd = nil
             self.isAdLoaded = false
@@ -64,7 +63,7 @@ class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
         }
     }
 
-    nonisolated func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+    nonisolated func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         Task { @MainActor in
             print("[AdMob] Failed to present: \(error.localizedDescription)")
             self.adDismissedContinuation?.resume()
