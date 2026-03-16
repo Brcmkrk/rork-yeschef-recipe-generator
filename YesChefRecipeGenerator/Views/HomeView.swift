@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(LanguageManager.self) private var lang
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(FreeRecipeTracker.self) private var freeRecipeTracker
+    @Environment(InterstitialAdManager.self) private var adManager
 
     var body: some View {
         NavigationStack {
@@ -441,10 +442,15 @@ struct HomeView: View {
         }
 
         isEditorFocused = false
-        recipesReady = false
-        showLoading = true
 
         Task {
+            if !subscriptionManager.isProUser && !freeRecipeTracker.hasReachedLimit {
+                await adManager.showAdAndWait()
+            }
+
+            recipesReady = false
+            showLoading = true
+
             await viewModel.generateRecipes()
             if viewModel.hasResults && viewModel.errorMessage == nil {
                 recipesReady = true
