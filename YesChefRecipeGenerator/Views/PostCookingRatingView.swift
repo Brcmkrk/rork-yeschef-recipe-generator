@@ -2,7 +2,6 @@ import SwiftUI
 
 struct PostCookingRatingView: View {
     let recipe: Recipe
-    let onReturnToRecipes: () -> Void
     let onGoToMenu: () -> Void
     @Environment(LanguageManager.self) private var lang
     @Environment(LikesStore.self) private var likesStore
@@ -10,12 +9,7 @@ struct PostCookingRatingView: View {
     @State private var ratedType: ReactionType = .none
     @State private var thumbsUpScale: CGFloat = 1.0
     @State private var thumbsDownScale: CGFloat = 1.0
-    @State private var showReturnConfirmation: Bool = false
-    @State private var showMenuConfirmation: Bool = false
 
-    private var isFreeTier: Bool {
-        !SubscriptionManager.shared.isProUser
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,6 +54,9 @@ struct PostCookingRatingView: View {
                                 thumbsDownScale = 1.3
                                 rated = true
                             }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                onGoToMenu()
+                            }
                         } label: {
                             VStack(spacing: 10) {
                                 Image(systemName: "hand.thumbsdown.fill")
@@ -88,6 +85,9 @@ struct PostCookingRatingView: View {
                             withAnimation(.spring(duration: 0.4, bounce: 0.5)) {
                                 thumbsUpScale = 1.3
                                 rated = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                onGoToMenu()
                             }
                         } label: {
                             VStack(spacing: 10) {
@@ -132,42 +132,7 @@ struct PostCookingRatingView: View {
 
             Spacer()
 
-            VStack(spacing: 12) {
-                    Button {
-                        showReturnConfirmation = true
-                    } label: {
-                        Label(lang.t("Return to Recipes", "Tariflere Dön"), systemImage: "arrow.uturn.left")
-                            .font(.system(.headline, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(
-                                LinearGradient(
-                                    colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .foregroundStyle(.white)
-                            .clipShape(.rect(cornerRadius: 16))
-                            .shadow(color: .orange.opacity(0.3), radius: 8, y: 3)
-                    }
-                    .buttonStyle(.plain)
 
-                    Button {
-                        showMenuConfirmation = true
-                    } label: {
-                        Label(lang.t("Go to Menu", "Ana Menüye Git"), systemImage: "house.fill")
-                            .font(.system(.headline, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(Color(.tertiarySystemFill))
-                            .foregroundStyle(.primary)
-                            .clipShape(.rect(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
-                }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
         }
         .background(
             LinearGradient(
@@ -177,41 +142,6 @@ struct PostCookingRatingView: View {
             )
             .ignoresSafeArea()
         )
-        .alert(
-            lang.t("Are you sure?", "Emin misin?"),
-            isPresented: $showReturnConfirmation
-        ) {
-            Button(lang.t("Yes, Return", "Evet, Dön"), role: .destructive) {
-                onReturnToRecipes()
-            }
-            Button(lang.t("Cancel", "İptal"), role: .cancel) {}
-        } message: {
-            if isFreeTier {
-                Text(lang.t(
-                    "Your free recipe has already been counted. Are you sure you want to leave?",
-                    "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
-                ))
-            } else {
-                Text(lang.t("You'll return to the recipes.", "Tariflere döneceksin."))
-            }
-        }
-        .alert(
-            lang.t("Are you sure?", "Emin misin?"),
-            isPresented: $showMenuConfirmation
-        ) {
-            Button(lang.t("Go to Menu", "Ana Menüye Git"), role: .destructive) {
-                onGoToMenu()
-            }
-            Button(lang.t("Cancel", "İptal"), role: .cancel) {}
-        } message: {
-            if isFreeTier {
-                Text(lang.t(
-                    "Your free recipe has already been counted. Are you sure you want to leave?",
-                    "Ücretsiz tarifin zaten sayıldı. Çıkmak istediğine emin misin?"
-                ))
-            } else {
-                Text(lang.t("You'll return to the main menu.", "Ana menüye döneceksin."))
-            }
-        }
+
     }
 }

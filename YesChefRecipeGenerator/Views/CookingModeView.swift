@@ -43,9 +43,6 @@ struct CookingModeView: View {
                 if showPostRating {
                     PostCookingRatingView(
                         recipe: recipe,
-                        onReturnToRecipes: {
-                            dismiss()
-                        },
                         onGoToMenu: {
                             dismiss()
                             onFinishCooking?()
