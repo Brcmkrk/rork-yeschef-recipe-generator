@@ -1,6 +1,5 @@
 import SwiftUI
 import RevenueCat
-import GoogleMobileAds
 
 @main
 struct YesChefRecipeGeneratorApp: App {
@@ -10,13 +9,9 @@ struct YesChefRecipeGeneratorApp: App {
     @State private var statsStore = StatsStore.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var freeRecipeTracker = FreeRecipeTracker.shared
-    @State private var interstitialAdManager = InterstitialAdManager.shared
 
     init() {
         SubscriptionManager.shared.configure()
-        GADMobileAds.sharedInstance().start { _ in
-            InterstitialAdManager.shared.loadAd()
-        }
     }
 
     var body: some Scene {
@@ -28,7 +23,6 @@ struct YesChefRecipeGeneratorApp: App {
                 .environment(statsStore)
                 .environment(subscriptionManager)
                 .environment(freeRecipeTracker)
-                .environment(interstitialAdManager)
         }
     }
 }
