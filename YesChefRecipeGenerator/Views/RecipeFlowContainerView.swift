@@ -8,6 +8,8 @@ struct RecipeFlowContainerView: View {
     @State private var recipesReady: Bool = false
     @State private var pendingShowResults: Bool = false
     @State private var showPaywall: Bool = false
+    @State private var showExitConfirmation: Bool = false
+    @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
     @Environment(SubscriptionManager.self) private var subscriptionManager
     @Environment(FreeRecipeTracker.self) private var freeRecipeTracker
@@ -17,7 +19,7 @@ struct RecipeFlowContainerView: View {
     private var canProceed: Bool {
         switch currentStep {
         case 0: return !viewModel.selectedIngredients.isEmpty
-        case 1: return viewModel.selectedCuisine != nil
+        case 1: return !viewModel.selectedCuisines.isEmpty
         case 2: return true
         case 3: return true
         default: return false
@@ -46,6 +48,20 @@ struct RecipeFlowContainerView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        if viewModel.selectedIngredients.isEmpty && viewModel.selectedCuisines.isEmpty {
+                            dismiss()
+                        } else {
+                            showExitConfirmation = true
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 6) {
                         Image("MascotImage")
@@ -57,6 +73,20 @@ struct RecipeFlowContainerView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+            }
+            .alert(
+                lang.t("Leave Recipe Flow?", "Tarif Akışından Çık?"),
+                isPresented: $showExitConfirmation
+            ) {
+                Button(lang.t("Yes, Leave", "Evet, Çık"), role: .destructive) {
+                    viewModel.shouldReturnToHome = true
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                Text(lang.t(
+                    "Your selections will be lost.",
+                    "Seçimleriniz kaybolacak."
+                ))
             }
             .fullScreenCover(isPresented: $showLoading, onDismiss: {
                 if pendingShowResults {
@@ -100,6 +130,12 @@ struct RecipeFlowContainerView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
+            }
+            .onChange(of: viewModel.shouldReturnToHome) { _, newValue in
+                if newValue {
+                    showResults = false
+                    showLoading = false
+                }
             }
         }
     }

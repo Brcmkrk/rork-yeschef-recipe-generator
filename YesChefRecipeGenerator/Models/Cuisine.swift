@@ -9,7 +9,8 @@ nonisolated enum Cuisine: String, CaseIterable, Sendable, Identifiable {
     case mediterranean = "Mediterranean"
     case american = "American"
     case indian = "Indian"
-    case japanese = "Japanese"
+    case chinese = "Chinese"
+    case thai = "Thai"
 
     var id: String { rawValue }
 
@@ -23,7 +24,8 @@ nonisolated enum Cuisine: String, CaseIterable, Sendable, Identifiable {
         case .mediterranean: return "fish.fill"
         case .american: return "star.fill"
         case .indian: return "sparkles"
-        case .japanese: return "cup.and.saucer.fill"
+        case .chinese: return "cup.and.saucer.fill"
+        case .thai: return "drop.fill"
         }
     }
 
@@ -38,7 +40,8 @@ nonisolated enum Cuisine: String, CaseIterable, Sendable, Identifiable {
             case .mediterranean: return "Akdeniz"
             case .american: return "Amerikan"
             case .indian: return "Hint"
-            case .japanese: return "Japon"
+            case .chinese: return "Çin"
+            case .thai: return "Tayland"
             }
         } else {
             return rawValue

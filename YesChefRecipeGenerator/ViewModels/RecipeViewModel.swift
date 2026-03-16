@@ -10,6 +10,7 @@ class RecipeViewModel {
     var exactMatchCount: Int = 2
     var extraIngredientCount: Int = 2
     var useStrictMatch: Bool = false
+    var shouldReturnToHome: Bool = false
     var exactMatchRecipes: [Recipe] = []
     var extraIngredientRecipes: [Recipe] = []
     var isLoading: Bool = false
@@ -35,21 +36,30 @@ class RecipeViewModel {
     }
 
     var canGenerateFromFlow: Bool {
-        !selectedIngredients.isEmpty && selectedCuisine != nil && !isLoading
+        !selectedIngredients.isEmpty && !selectedCuisines.isEmpty && !isLoading
     }
 
     func syncFlowToGeneration() {
         ingredientsText = selectedIngredients.joined(separator: ", ")
-        if let cuisine = selectedCuisine {
-            selectedCuisines = [cuisine]
-        }
-        if useStrictMatch {
-            exactMatchCount = 4
-            extraIngredientCount = 0
-        } else {
-            exactMatchCount = 2
-            extraIngredientCount = 2
-        }
+    }
+
+    func resetFlow() {
+        selectedIngredients = []
+        selectedCuisines = []
+        selectedCuisine = nil
+        servings = 2
+        exactMatchCount = 2
+        extraIngredientCount = 2
+        useStrictMatch = false
+        exactMatchRecipes = []
+        extraIngredientRecipes = []
+        hasResults = false
+        errorMessage = nil
+        isNearMatch = false
+        isLoading = false
+        isExpanding = false
+        ingredientsText = ""
+        previousRecipeTitles = []
     }
 
     func addIngredient(_ ingredient: String) {

@@ -22,9 +22,8 @@ struct IngredientSelectionView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     headerSection
-
                     searchSection
 
                     if !filteredSuggestions.isEmpty {
@@ -70,7 +69,7 @@ struct IngredientSelectionView: View {
                 .font(.body)
 
             TextField(
-                lang.t("Search ingredients...", "Malzeme ara..."),
+                lang.t("Type an ingredient...", "Malzeme yaz..."),
                 text: $searchText
             )
             .focused($isSearchFocused)
@@ -111,36 +110,43 @@ struct IngredientSelectionView: View {
     }
 
     private var suggestionsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(lang.t("Suggestions", "Öneriler"))
-                .font(.system(.caption, design: .rounded, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            FlowLayout(spacing: 8) {
-                ForEach(filteredSuggestions.prefix(12), id: \.self) { ingredient in
-                    Button {
-                        withAnimation(.spring(duration: 0.3)) {
-                            viewModel.addIngredient(ingredient)
-                            searchText = ""
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 13))
-                            Text(ingredient)
-                                .font(.system(.subheadline, design: .rounded, weight: .medium))
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(Color.orange.opacity(0.08))
-                        .foregroundStyle(.orange)
-                        .clipShape(.capsule)
+        VStack(spacing: 0) {
+            ForEach(Array(filteredSuggestions.prefix(8).enumerated()), id: \.element) { index, ingredient in
+                Button {
+                    withAnimation(.spring(duration: 0.3)) {
+                        viewModel.addIngredient(ingredient)
+                        searchText = ""
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.orange)
+
+                        Text(ingredient)
+                            .font(.system(.body, design: .rounded))
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        Image(systemName: "arrow.up.left")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+
+                if index < min(filteredSuggestions.count, 8) - 1 {
+                    Divider()
+                        .padding(.leading, 48)
                 }
             }
         }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
@@ -227,4 +233,3 @@ struct IngredientSelectionView: View {
         .buttonStyle(.plain)
     }
 }
-

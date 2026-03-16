@@ -8,22 +8,19 @@ struct CuisineSelectionView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 20) {
                 headerSection
+                selectAllButtons
 
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(Cuisine.allCases) { cuisine in
                         CuisineCardView(
                             cuisine: cuisine,
-                            isSelected: viewModel.selectedCuisine == cuisine,
+                            isSelected: viewModel.selectedCuisines.contains(cuisine),
                             lang: lang
                         ) {
                             withAnimation(.spring(duration: 0.3)) {
-                                if viewModel.selectedCuisine == cuisine {
-                                    viewModel.selectedCuisine = nil
-                                } else {
-                                    viewModel.selectedCuisine = cuisine
-                                }
+                                viewModel.toggleCuisine(cuisine)
                             }
                         }
                     }
@@ -42,15 +39,58 @@ struct CuisineSelectionView: View {
                 .foregroundStyle(.blue.gradient)
                 .padding(.bottom, 4)
 
-            Text(lang.t("Pick your cuisine", "Mutfak seç"))
+            Text(lang.t("Pick your cuisine(s)", "Mutfak(ları) seç"))
                 .font(.system(.title2, design: .rounded, weight: .bold))
 
-            Text(lang.t("What kind of food are you craving?", "Ne tür bir yemek istiyorsun?"))
+            Text(lang.t("Select one or more cuisines", "Bir veya daha fazla mutfak seç"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
+    }
+
+    private var selectAllButtons: some View {
+        HStack(spacing: 10) {
+            Button {
+                withAnimation(.spring(duration: 0.3)) {
+                    viewModel.selectAllCuisines()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13))
+                    Text(lang.t("Select All", "Tümünü Seç"))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Color.orange.opacity(0.1))
+                .foregroundStyle(.orange)
+                .clipShape(.rect(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.spring(duration: 0.3)) {
+                    viewModel.clearCuisines()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                    Text(lang.t("Deselect All", "Tümünü Kaldır"))
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Color(.tertiarySystemFill))
+                .foregroundStyle(.secondary)
+                .clipShape(.rect(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
     }
 }
 
@@ -80,6 +120,13 @@ struct CuisineCardView: View {
                 Text(displayName)
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .foregroundStyle(isSelected ? .orange : .primary)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.orange)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)

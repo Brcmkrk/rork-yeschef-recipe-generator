@@ -8,6 +8,7 @@ struct ResultsView: View {
     @Environment(LanguageManager.self) private var lang
     @State private var selectedRecipeId: String?
     @State private var appeared: Bool = false
+    @State private var showDismissConfirmation: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -95,7 +96,9 @@ struct ResultsView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: {
+                    Button {
+                        showDismissConfirmation = true
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .symbolRenderingMode(.hierarchical)
                             .font(.title3)
@@ -112,15 +115,32 @@ struct ResultsView: View {
                     }
                 }
             }
+            .alert(
+                lang.t("Leave Recipes?", "Tariflerden Çık?"),
+                isPresented: $showDismissConfirmation
+            ) {
+                Button(lang.t("Yes, Go Home", "Evet, Ana Menüye Dön"), role: .destructive) {
+                    viewModel.shouldReturnToHome = true
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                Text(lang.t(
+                    "You'll return to the home screen. Your recipes will be lost.",
+                    "Ana ekrana döneceksin. Tariflerin kaybolacak."
+                ))
+            }
             .sheet(isPresented: Binding(
                 get: { selectedRecipeId != nil },
                 set: { if !$0 { selectedRecipeId = nil } }
             )) {
                 if let id = selectedRecipeId,
                    let recipe = (viewModel.exactMatchRecipes + viewModel.extraIngredientRecipes).first(where: { $0.id == id }) {
-                    RecipeDetailView(recipe: recipe, viewModel: viewModel, isExpanding: viewModel.isExpanding && !recipe.isFullyLoaded) {
-                        dismiss()
-                    }
+                    RecipeDetailView(recipe: recipe, viewModel: viewModel, isExpanding: viewModel.isExpanding && !recipe.isFullyLoaded)
+                }
+            }
+            .onChange(of: viewModel.shouldReturnToHome) { _, newValue in
+                if newValue {
+                    selectedRecipeId = nil
                 }
             }
         }

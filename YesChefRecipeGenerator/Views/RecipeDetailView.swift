@@ -4,7 +4,6 @@ struct RecipeDetailView: View {
     let recipe: Recipe
     let viewModel: RecipeViewModel
     var isExpanding: Bool = false
-    var onFinishCooking: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
     @State private var showCookingMode: Bool = false
@@ -70,9 +69,11 @@ struct RecipeDetailView: View {
                 }
             }
             .fullScreenCover(isPresented: $showCookingMode) {
-                CookingModeView(recipe: recipe) {
-                    dismiss()
-                    onFinishCooking?()
+                CookingModeView(recipe: recipe, viewModel: viewModel)
+            }
+            .onChange(of: viewModel.shouldReturnToHome) { _, newValue in
+                if newValue {
+                    showCookingMode = false
                 }
             }
         }

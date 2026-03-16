@@ -4,11 +4,15 @@ struct MatchPreferenceView: View {
     @Bindable var viewModel: RecipeViewModel
     @Environment(LanguageManager.self) private var lang
 
+    private let ratios: [(exact: Int, extra: Int)] = [
+        (4, 0), (3, 1), (2, 2), (1, 3), (0, 4)
+    ]
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 28) {
+            VStack(spacing: 24) {
                 headerSection
-                matchOptions
+                ratioCards
                 summaryCard
             }
             .padding(.horizontal, 20)
@@ -24,105 +28,106 @@ struct MatchPreferenceView: View {
                 .foregroundStyle(.mint.gradient)
                 .padding(.bottom, 4)
 
-            Text(lang.t("Recipe matching", "Tarif eşleştirme"))
+            Text(lang.t("Recipe Match", "Tarif Eşleşme"))
                 .font(.system(.title2, design: .rounded, weight: .bold))
 
-            Text(lang.t("How closely should recipes match your ingredients?", "Tarifler malzemelerinle ne kadar uyumlu olsun?"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            Text(lang.t(
+                "Choose how many recipes should match your ingredients exactly vs. creatively",
+                "Kaç tarifin malzemelerinle birebir, kaçının yaratıcı olacağını seç"
+            ))
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
     }
 
-    private var matchOptions: some View {
-        VStack(spacing: 12) {
-            matchCard(
-                isStrict: true,
-                icon: "checkmark.seal.fill",
-                iconColor: .green,
-                title: lang.t("Strict Match", "Tam Eşleşme"),
-                description: lang.t(
-                    "Only recipes that use your exact ingredients. No surprises, no extras needed.",
-                    "Sadece senin malzemelerini kullanan tarifler. Sürpriz yok, ekstra malzeme yok."
-                ),
-                isSelected: viewModel.useStrictMatch
-            )
+    private var ratioCards: some View {
+        VStack(spacing: 10) {
+            ForEach(ratios, id: \.exact) { ratio in
+                let isSelected = viewModel.exactMatchCount == ratio.exact && viewModel.extraIngredientCount == ratio.extra
 
-            matchCard(
-                isStrict: false,
-                icon: "sparkles",
-                iconColor: .purple,
-                title: lang.t("Flexible Match", "Esnek Eşleşme"),
-                description: lang.t(
-                    "Recipes mostly using your ingredients, but may suggest extras for better results.",
-                    "Çoğunlukla senin malzemelerini kullanan tarifler, ama daha iyi sonuçlar için ekstra önerebilir."
-                ),
-                isSelected: !viewModel.useStrictMatch
-            )
+                Button {
+                    withAnimation(.spring(duration: 0.3)) {
+                        viewModel.exactMatchCount = ratio.exact
+                        viewModel.extraIngredientCount = ratio.extra
+                    }
+                } label: {
+                    HStack(spacing: 14) {
+                        HStack(spacing: 3) {
+                            ForEach(0..<4, id: \.self) { i in
+                                Circle()
+                                    .fill(i < ratio.exact ? Color.green : Color.purple)
+                                    .frame(width: 12, height: 12)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ratioTitle(ratio))
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text(ratioDescription(ratio))
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(isSelected ? .orange : Color(.tertiaryLabel))
+                    }
+                    .padding(14)
+                    .background(
+                        isSelected
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [.orange.opacity(0.04), .orange.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
+                    )
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(
+                                isSelected ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.15),
+                                lineWidth: isSelected ? 1.5 : 1
+                            )
+                    )
+                    .shadow(color: isSelected ? .orange.opacity(0.08) : .clear, radius: 6, y: 2)
+                }
+                .buttonStyle(.plain)
+                .sensoryFeedback(.selection, trigger: isSelected)
+            }
         }
     }
 
-    private func matchCard(isStrict: Bool, icon: String, iconColor: Color, title: String, description: String, isSelected: Bool) -> some View {
-        Button {
-            withAnimation(.spring(duration: 0.3)) {
-                viewModel.useStrictMatch = isStrict
-            }
-        } label: {
-            HStack(alignment: .top, spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? iconColor.opacity(0.15) : Color(.tertiarySystemFill))
-                        .frame(width: 46, height: 46)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 20))
-                        .foregroundStyle(isSelected ? iconColor : .secondary)
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title)
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text(description)
-                        .font(.system(.subheadline, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? .orange : Color(.tertiaryLabel))
-                    .padding(.top, 2)
-            }
-            .padding(16)
-            .background(
-                isSelected
-                    ? AnyShapeStyle(
-                        LinearGradient(
-                            colors: [.orange.opacity(0.04), .orange.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
-            )
-            .clipShape(.rect(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(
-                        isSelected ? Color.orange.opacity(0.4) : Color(.separator).opacity(0.15),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
-            .shadow(color: isSelected ? .orange.opacity(0.08) : .clear, radius: 8, y: 3)
+    private func ratioTitle(_ ratio: (exact: Int, extra: Int)) -> String {
+        if ratio.extra == 0 {
+            return lang.t("\(ratio.exact) Exact Match", "\(ratio.exact) Tam Eşleşme")
+        } else if ratio.exact == 0 {
+            return lang.t("\(ratio.extra) Creative", "\(ratio.extra) Yaratıcı")
+        } else {
+            return lang.t("\(ratio.exact) Exact · \(ratio.extra) Creative", "\(ratio.exact) Tam · \(ratio.extra) Yaratıcı")
         }
-        .buttonStyle(.plain)
-        .sensoryFeedback(.selection, trigger: isSelected)
+    }
+
+    private func ratioDescription(_ ratio: (exact: Int, extra: Int)) -> String {
+        if ratio.extra == 0 {
+            return lang.t("Only recipes using your exact ingredients", "Sadece malzemelerinle yapılan tarifler")
+        } else if ratio.exact == 0 {
+            return lang.t("Creative recipes that may need extra ingredients", "Ekstra malzeme gerektirebilen yaratıcı tarifler")
+        } else {
+            return lang.t(
+                "\(ratio.exact) using your ingredients, \(ratio.extra) with extras",
+                "\(ratio.exact) malzemelerinle, \(ratio.extra) ekstralarla"
+            )
+        }
     }
 
     private var summaryCard: some View {
@@ -142,8 +147,10 @@ struct MatchPreferenceView: View {
                 )
                 summaryRow(
                     icon: "globe",
-                    label: lang.t("Cuisine", "Mutfak"),
-                    value: viewModel.selectedCuisine?.localizedName(language: lang.current.rawValue) ?? "-"
+                    label: lang.t("Cuisines", "Mutfaklar"),
+                    value: viewModel.selectedCuisines.isEmpty
+                        ? "-"
+                        : viewModel.selectedCuisines.map { $0.localizedName(language: lang.current.rawValue) }.joined(separator: ", ")
                 )
                 summaryRow(
                     icon: "person.2.fill",
@@ -153,9 +160,7 @@ struct MatchPreferenceView: View {
                 summaryRow(
                     icon: "slider.horizontal.3",
                     label: lang.t("Match", "Eşleşme"),
-                    value: viewModel.useStrictMatch
-                        ? lang.t("Strict", "Tam")
-                        : lang.t("Flexible", "Esnek")
+                    value: "\(viewModel.exactMatchCount) \(lang.t("exact", "tam")) · \(viewModel.extraIngredientCount) \(lang.t("creative", "yaratıcı"))"
                 )
             }
         }
@@ -175,6 +180,7 @@ struct MatchPreferenceView: View {
             Spacer()
             Text(value)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .lineLimit(1)
         }
     }
 }

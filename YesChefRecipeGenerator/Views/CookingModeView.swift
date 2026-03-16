@@ -3,7 +3,7 @@ import ActivityKit
 
 struct CookingModeView: View {
     let recipe: Recipe
-    var onFinishCooking: (() -> Void)?
+    let viewModel: RecipeViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
     @Environment(TriedRecipesStore.self) private var triedStore
@@ -44,8 +44,8 @@ struct CookingModeView: View {
                     PostCookingRatingView(
                         recipe: recipe,
                         onGoToMenu: {
-                            dismiss()
-                            onFinishCooking?()
+                            endAllLiveActivities()
+                            viewModel.shouldReturnToHome = true
                         }
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -106,8 +106,7 @@ struct CookingModeView: View {
             ) {
                 Button(lang.t("Go to Menu", "Ana Menüye Git"), role: .destructive) {
                     endAllLiveActivities()
-                    dismiss()
-                    onFinishCooking?()
+                    viewModel.shouldReturnToHome = true
                 }
                 Button(lang.t("Cancel", "İptal"), role: .cancel) {}
             } message: {
