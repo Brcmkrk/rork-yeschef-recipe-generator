@@ -2,10 +2,10 @@ import SwiftUI
 import GoogleMobileAds
 
 @Observable
-class InterstitialAdManager: NSObject, FullScreenContentDelegate {
+class InterstitialAdManager: NSObject, GADFullScreenContentDelegate {
     static let shared = InterstitialAdManager()
 
-    private var interstitialAd: InterstitialAd?
+    private var interstitialAd: GADInterstitialAd?
     var isAdLoaded: Bool = false
     private var adDismissedContinuation: CheckedContinuation<Void, Never>?
 
@@ -22,7 +22,7 @@ class InterstitialAdManager: NSObject, FullScreenContentDelegate {
     func loadAd() {
         Task {
             do {
-                let ad = try await InterstitialAd.load(with: adUnitID, request: Request())
+                let ad = try await GADInterstitialAd.load(withAdUnitID: adUnitID, request: GADRequest())
                 self.interstitialAd = ad
                 self.interstitialAd?.fullScreenContentDelegate = self
                 self.isAdLoaded = true
@@ -53,7 +53,7 @@ class InterstitialAdManager: NSObject, FullScreenContentDelegate {
         return top
     }
 
-    nonisolated func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
+    nonisolated func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
         Task { @MainActor in
             self.interstitialAd = nil
             self.isAdLoaded = false
@@ -63,7 +63,7 @@ class InterstitialAdManager: NSObject, FullScreenContentDelegate {
         }
     }
 
-    nonisolated func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+    nonisolated func ad(_ ad: GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         Task { @MainActor in
             print("[AdMob] Failed to present: \(error.localizedDescription)")
             self.adDismissedContinuation?.resume()
