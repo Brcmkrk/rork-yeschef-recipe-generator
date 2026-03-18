@@ -256,6 +256,26 @@ class RecipeViewModel {
                     try? await Task.sleep(for: .seconds(1))
                     continue
                 }
+
+                let cached = await SupabaseService.shared.fetchCachedRecipes(
+                    ingredients: ingredientsList,
+                    servings: servings,
+                    cuisines: cuisineNames,
+                    language: language
+                )
+
+                if !cached.isEmpty {
+                    print("[RecipeVM] API failed, using \(cached.count) cached recipes as fallback")
+                    let exactCount = min(exactMatchCount, cached.count)
+                    exactMatchRecipes = Array(cached.prefix(exactCount))
+                    extraIngredientRecipes = Array(cached.dropFirst(exactCount).prefix(extraIngredientCount))
+                    isNearMatch = true
+                    isLoading = false
+                    hasResults = true
+                    expandRecipesInBackground()
+                    return
+                }
+
                 let msg = error.localizedDescription
                 if msg.contains("unreachable") || msg.contains("not deployed") || msg.contains("API key not configured") {
                     errorMessage = language == "tr"
