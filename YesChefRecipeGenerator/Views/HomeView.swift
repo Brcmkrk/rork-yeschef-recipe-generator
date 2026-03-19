@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Bindable var viewModel: RecipeViewModel
     @State private var showFlow: Bool = false
+    @State private var showPaywall: Bool = false
     @State private var animateCards: Bool = false
     @Environment(LanguageManager.self) private var lang
     @Environment(FreeRecipeTracker.self) private var freeRecipeTracker
@@ -162,7 +163,11 @@ struct HomeView: View {
 
     private var startButton: some View {
         Button {
-            showFlow = true
+            if !subscriptionManager.isProUser && freeRecipeTracker.hasReachedLimit {
+                showPaywall = true
+            } else {
+                showFlow = true
+            }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "flame.fill")
@@ -186,21 +191,39 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
         .sensoryFeedback(.impact(weight: .medium), trigger: showFlow)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 
     private var freeRecipesBadge: some View {
         HStack(spacing: 10) {
-            Image(systemName: "gift.fill")
-                .foregroundStyle(.orange)
-            Text(lang.t(
-                "\(freeRecipeTracker.remainingFreeRecipes) free recipes remaining",
-                "\(freeRecipeTracker.remainingFreeRecipes) ücretsiz tarif kaldı"
-            ))
+            Image(systemName: freeRecipeTracker.hasReachedLimit ? "exclamationmark.triangle.fill" : "gift.fill")
+                .foregroundStyle(freeRecipeTracker.hasReachedLimit ? .red : .orange)
+            Text(freeRecipeTracker.hasReachedLimit
+                 ? lang.t("No free recipes left this month", "Bu ay ücretsiz tarif hakkın kalmadı")
+                 : lang.t(
+                    "\(freeRecipeTracker.remainingFreeRecipes) free recipes remaining",
+                    "\(freeRecipeTracker.remainingFreeRecipes) ücretsiz tarif kaldı"
+                 ))
             .font(.system(.subheadline, design: .rounded, weight: .medium))
             Spacer()
+            if freeRecipeTracker.hasReachedLimit {
+                Button {
+                    showPaywall = true
+                } label: {
+                    Text("Pro")
+                        .font(.system(.caption, design: .rounded, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(LinearGradient(colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)], startPoint: .leading, endPoint: .trailing))
+                        .clipShape(.capsule)
+                }
+            }
         }
         .padding(14)
-        .background(Color.orange.opacity(0.06))
+        .background(freeRecipeTracker.hasReachedLimit ? Color.red.opacity(0.06) : Color.orange.opacity(0.06))
         .clipShape(.rect(cornerRadius: 14))
         .padding(.horizontal, 20)
     }
