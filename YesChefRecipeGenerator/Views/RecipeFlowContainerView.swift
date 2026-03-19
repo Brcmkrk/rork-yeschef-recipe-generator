@@ -333,19 +333,18 @@ struct RecipeFlowContainerView: View {
         }
 
         viewModel.syncFlowToGeneration()
+        let ingredients = viewModel.selectedIngredients
+        let language = viewModel.language
         recipesReady = false
         showLoading = true
 
         Task {
             let startTime = Date()
-            let rowId = await SupabaseService.shared.saveSearchedIngredients(viewModel.selectedIngredients, language: viewModel.language)
             await viewModel.generateRecipes()
+            let elapsedMs = Int(Date().timeIntervalSince(startTime) * 1000)
             if viewModel.hasResults && viewModel.errorMessage == nil {
                 recipesReady = true
-                if let rowId {
-                    let elapsedMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                    await SupabaseService.shared.updateGenerationTime(rowId: rowId, timeMs: elapsedMs)
-                }
+                await SupabaseService.shared.saveSearchedIngredientsWithTime(ingredients, language: language, generationTimeMs: elapsedMs)
             } else {
                 showLoading = false
             }
