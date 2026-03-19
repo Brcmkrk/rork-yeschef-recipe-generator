@@ -8,6 +8,17 @@ struct SettingsView: View {
     @State private var showLanguagePicker: Bool = false
     @State private var showPaywall: Bool = false
 
+    private var subscriptionPeriodLabel: String {
+        switch subscriptionManager.subscriptionPeriod {
+        case .yearly:
+            return lang.t("Yearly subscription", "Yıllık abonelik")
+        case .monthly:
+            return lang.t("Monthly subscription", "Aylık abonelik")
+        case .unknown:
+            return lang.t("Active subscription", "Aktif abonelik")
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -20,7 +31,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Cooktopus Pro")
                                     .font(.system(.subheadline, design: .rounded, weight: .bold))
-                                Text(lang.t("Active subscription", "Aktif abonelik"))
+                                Text(subscriptionPeriodLabel)
                                     .font(.system(.caption, design: .rounded))
                                     .foregroundStyle(.secondary)
                             }

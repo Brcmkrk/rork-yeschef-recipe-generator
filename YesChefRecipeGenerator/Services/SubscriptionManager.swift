@@ -8,6 +8,13 @@ class SubscriptionManager {
     var isProUser: Bool = false
     var isLoading: Bool = false
     var customerInfo: CustomerInfo?
+    var subscriptionPeriod: SubscriptionPeriodType = .unknown
+
+    nonisolated enum SubscriptionPeriodType: Sendable {
+        case monthly
+        case yearly
+        case unknown
+    }
 
     private let entitlementID = "Cooktopus Pro"
 
@@ -34,8 +41,24 @@ class SubscriptionManager {
             let info = try await Purchases.shared.customerInfo()
             customerInfo = info
             isProUser = info.entitlements[entitlementID]?.isActive == true
+            updatePeriod(from: info)
         } catch {
             isProUser = false
+        }
+    }
+
+    func updatePeriod(from info: CustomerInfo) {
+        guard let entitlement = info.entitlements[entitlementID], entitlement.isActive else {
+            subscriptionPeriod = .unknown
+            return
+        }
+        let productId = entitlement.productIdentifier.lowercased()
+        if productId.contains("year") || productId.contains("annual") {
+            subscriptionPeriod = .yearly
+        } else if productId.contains("month") {
+            subscriptionPeriod = .monthly
+        } else {
+            subscriptionPeriod = .unknown
         }
     }
 
@@ -45,6 +68,7 @@ class SubscriptionManager {
         let info = try await Purchases.shared.restorePurchases()
         customerInfo = info
         isProUser = info.entitlements[entitlementID]?.isActive == true
+        updatePeriod(from: info)
     }
 }
 
@@ -56,6 +80,7 @@ class PurchaseDelegateHandler: NSObject, PurchasesDelegate {
         Task { @MainActor in
             self.manager?.customerInfo = customerInfo
             self.manager?.isProUser = customerInfo.entitlements["Cooktopus Pro"]?.isActive == true
+            self.manager?.updatePeriod(from: customerInfo)
         }
     }
 }
