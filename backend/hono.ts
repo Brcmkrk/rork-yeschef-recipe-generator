@@ -26,7 +26,6 @@ import {
   getTriedRecipes,
   markRecipeAsTried,
   logSearchedIngredients,
-  updateSearchedIngredientsLatency,
 } from "./lib/supabase";
 
 // ── OpenAI Key ───────────────────────────────────────────────────────────────
@@ -294,15 +293,6 @@ app.post("/generate-recipe-previews", async (c) => {
       return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
     }
 
-    // Log searched ingredients and get the ID
-    let searchLogId: number | null = null;
-    try {
-      const searchLog = await logSearchedIngredients(deviceId, ingredients, language);
-      if (searchLog) searchLogId = searchLog.id;
-    } catch (err) {
-      console.error("[PREVIEW] Failed to log searched ingredients:", err);
-    }
-
     const systemPrompt = previewSystemPrompt(language, exactCount, extraCount, excludeTitles);
     const userPrompt = previewUserPrompt(ingredients, cuisines, servings, language, exactCount + extraCount, excludeTitles);
 
@@ -317,12 +307,10 @@ app.post("/generate-recipe-previews", async (c) => {
     );
     const latencyMs = Date.now() - startTime;
     
-    // Update latency asynchronously
-    if (searchLogId) {
-      updateSearchedIngredientsLatency(searchLogId, latencyMs).catch(err => 
-        console.error("[PREVIEW] Failed to update latency:", err)
-      );
-    }
+    // Log searched ingredients alongside the latency time
+    logSearchedIngredients(deviceId, ingredients, language, latencyMs).catch(err => 
+      console.error("[PREVIEW] Failed to log searched ingredients:", err)
+    );
 
     if (!content) return c.json({ error: "No response from AI" }, 500);
 

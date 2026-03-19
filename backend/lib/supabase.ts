@@ -96,28 +96,24 @@ export async function markRecipeAsTried(entry: TriedRecipe) {
   return data;
 }
 
-export async function logSearchedIngredients(deviceId: string, ingredients: string[], language: string = 'en') {
+export async function logSearchedIngredients(deviceId: string, ingredients: string[], language: string = 'en', latencyMs?: number) {
   if (!deviceId || !ingredients || ingredients.length === 0) return null;
   
-  const { data, error } = await supabase
-    .from('searched_ingredients')
-    .insert({
+  const payload: any = {
       device_id: deviceId,
       ingredients: ingredients,
       language: language
-    })
+  };
+  if (typeof latencyMs === 'number') {
+      payload.generation_time_ms = latencyMs;
+  }
+
+  const { data, error } = await supabase
+    .from('searched_ingredients')
+    .insert(payload)
     .select()
     .maybeSingle();
     
   if (error) { console.error('[SUPABASE] logSearchedIngredients error:', error.message); return null; }
   return data;
-}
-
-export async function updateSearchedIngredientsLatency(id: number, latencyMs: number) {
-  if (!id) return;
-  const { error } = await supabase
-    .from('searched_ingredients')
-    .update({ generation_time_ms: latencyMs })
-    .eq('id', id);
-  if (error) { console.error('[SUPABASE] updateLatency error:', error.message); }
 }
