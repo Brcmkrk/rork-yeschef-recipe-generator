@@ -105,6 +105,9 @@ struct RecipeFlowContainerView: View {
                     onShowRecipes: {
                         recipesReady = false
                         if viewModel.hasResults && viewModel.errorMessage == nil {
+                            if !subscriptionManager.isProUser {
+                                freeRecipeTracker.incrementUsage()
+                            }
                             pendingShowResults = true
                         }
                         showLoading = false

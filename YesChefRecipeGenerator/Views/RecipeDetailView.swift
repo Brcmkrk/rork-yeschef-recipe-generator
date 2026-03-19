@@ -9,8 +9,6 @@ struct RecipeDetailView: View {
     @State private var showCookingMode: Bool = false
     @State private var copied: Bool = false
     @State private var expandedSpice: String?
-    @Environment(FreeRecipeTracker.self) private var freeRecipeTracker
-    @Environment(SubscriptionManager.self) private var subscriptionManager
 
     var body: some View {
         NavigationStack {
@@ -326,9 +324,6 @@ struct RecipeDetailView: View {
 
     private var actionButtons: some View {
         Button {
-            if !subscriptionManager.isProUser {
-                freeRecipeTracker.incrementUsage()
-            }
             showCookingMode = true
         } label: {
             HStack(spacing: 10) {

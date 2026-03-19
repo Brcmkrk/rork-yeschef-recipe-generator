@@ -6,6 +6,7 @@ struct ResultsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(LikesStore.self) private var likesStore
     @Environment(LanguageManager.self) private var lang
+    @Environment(SubscriptionManager.self) private var subscriptionManager
     @State private var selectedRecipeId: String?
     @State private var appeared: Bool = false
     @State private var showDismissConfirmation: Bool = false
@@ -124,10 +125,17 @@ struct ResultsView: View {
                 }
                 Button(lang.t("Cancel", "İptal"), role: .cancel) {}
             } message: {
-                Text(lang.t(
-                    "You'll return to the home screen. Your recipes will be lost.",
-                    "Ana ekrana döneceksin. Tariflerin kaybolacak."
-                ))
+                if subscriptionManager.isProUser {
+                    Text(lang.t(
+                        "You'll return to the home screen. Your recipes will be lost.",
+                        "Ana ekrana döneceksin. Tariflerin kaybolacak."
+                    ))
+                } else {
+                    Text(lang.t(
+                        "Your free recipe credit has already been used. You'll return to the home screen and your recipes will be lost.",
+                        "Ücretsiz tarif hakkın zaten kullanıldı. Ana ekrana döneceksin ve tariflerin kaybolacak."
+                    ))
+                }
             }
             .sheet(isPresented: Binding(
                 get: { selectedRecipeId != nil },
