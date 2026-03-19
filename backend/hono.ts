@@ -309,7 +309,7 @@ app.post("/generate-recipe-previews", async (c) => {
     const latencyMs = Date.now() - startTime;
     
     // Log searched ingredients alongside the latency time
-    await logSearchedIngredients(deviceId, ingredients, language, latencyMs, servings, cuisineCount ?? cuisines.length, exactCount, extraCount).catch(err => 
+    await logSearchedIngredients(deviceId, ingredients, language, latencyMs, servings, cuisineCount ?? cuisines.length, exactCount, extraCount, cuisines).catch(err => 
       console.error("[PREVIEW] Failed to log searched ingredients:", err)
     );
 

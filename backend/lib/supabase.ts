@@ -104,7 +104,8 @@ export async function logSearchedIngredients(
   servings?: number,
   cuisineCount?: number,
   exactMatchCount?: number,
-  extraMatchCount?: number
+  extraMatchCount?: number,
+  cuisines?: string[]
 ) {
   if (!deviceId || !ingredients || ingredients.length === 0) return null;
   
@@ -127,6 +128,9 @@ export async function logSearchedIngredients(
   }
   if (typeof extraMatchCount === 'number') {
       payload.extra_match_count = extraMatchCount;
+  }
+  if (Array.isArray(cuisines) && cuisines.length > 0) {
+      payload.cuisines = cuisines;
   }
 
   const { data, error } = await supabase
