@@ -9,6 +9,7 @@ struct RecipeFlowContainerView: View {
     @State private var pendingShowResults: Bool = false
     @State private var showPaywall: Bool = false
     @State private var showExitConfirmation: Bool = false
+    @State private var showFreeRecipeConfirmation: Bool = false
     @Environment(\.dismiss) private var dismiss
     @Environment(LanguageManager.self) private var lang
     @Environment(SubscriptionManager.self) private var subscriptionManager
@@ -73,6 +74,20 @@ struct RecipeFlowContainerView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+            }
+            .alert(
+                lang.t("Use Free Recipe?", "Ücretsiz Tarif Kullan?"),
+                isPresented: $showFreeRecipeConfirmation
+            ) {
+                Button(lang.t("Yes, Generate", "Evet, Oluştur")) {
+                    startGeneration()
+                }
+                Button(lang.t("Cancel", "İptal"), role: .cancel) {}
+            } message: {
+                Text(lang.t(
+                    "You have \(freeRecipeTracker.remainingFreeRecipes) free recipe(s) left. This will use 1 free recipe.",
+                    "\(freeRecipeTracker.remainingFreeRecipes) ücretsiz tarif hakkınız kaldı. Bu işlem 1 ücretsiz tarif hakkınızı kullanacak."
+                ))
             }
             .alert(
                 lang.t("Leave Recipe Flow?", "Tarif Akışından Çık?"),
@@ -335,6 +350,15 @@ struct RecipeFlowContainerView: View {
             return
         }
 
+        if !subscriptionManager.isProUser {
+            showFreeRecipeConfirmation = true
+            return
+        }
+
+        startGeneration()
+    }
+
+    private func startGeneration() {
         viewModel.syncFlowToGeneration()
         let ingredients = viewModel.selectedIngredients
         let language = viewModel.language
@@ -345,6 +369,7 @@ struct RecipeFlowContainerView: View {
         let cuisineCount = viewModel.selectedCuisines.count
         let exactMatchCount = viewModel.exactMatchCount
         let extraMatchCount = viewModel.extraIngredientCount
+        let cuisineNames = viewModel.selectedCuisines.map { $0.localizedName(language: language) }
 
         Task {
             let startTime = Date()
@@ -352,7 +377,7 @@ struct RecipeFlowContainerView: View {
             let elapsedMs = Int(Date().timeIntervalSince(startTime) * 1000)
             if viewModel.hasResults && viewModel.errorMessage == nil {
                 recipesReady = true
-                await SupabaseService.shared.saveSearchedIngredientsWithTime(ingredients, language: language, generationTimeMs: elapsedMs, servings: servings, cuisineCount: cuisineCount, exactMatchCount: exactMatchCount, extraMatchCount: extraMatchCount)
+                await SupabaseService.shared.saveSearchedIngredientsWithTime(ingredients, language: language, generationTimeMs: elapsedMs, servings: servings, cuisineCount: cuisineCount, exactMatchCount: exactMatchCount, extraMatchCount: extraMatchCount, cuisines: cuisineNames)
             } else {
                 showLoading = false
             }
