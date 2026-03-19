@@ -95,3 +95,20 @@ export async function markRecipeAsTried(entry: TriedRecipe) {
   if (error) { console.error('[SUPABASE] markRecipeAsTried error:', error.message); return null; }
   return data;
 }
+
+export async function logSearchedIngredients(deviceId: string, ingredients: string[], language: string = 'en') {
+  if (!deviceId || !ingredients || ingredients.length === 0) return null;
+  
+  const { data, error } = await supabase
+    .from('searched_ingredients')
+    .insert({
+      device_id: deviceId,
+      ingredients: ingredients,
+      language: language
+    })
+    .select()
+    .maybeSingle();
+    
+  if (error) { console.error('[SUPABASE] logSearchedIngredients error:', error.message); return null; }
+  return data;
+}

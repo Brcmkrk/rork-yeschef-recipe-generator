@@ -25,6 +25,7 @@ import {
   deleteRecipeReaction,
   getTriedRecipes,
   markRecipeAsTried,
+  logSearchedIngredients,
 } from "./lib/supabase";
 
 // ── OpenAI Key ───────────────────────────────────────────────────────────────
@@ -291,6 +292,11 @@ app.post("/generate-recipe-previews", async (c) => {
     if (!checkRateLimit(deviceId)) {
       return c.json({ error: "Rate limit exceeded. Please wait a moment." }, 429);
     }
+
+    // Log searched ingredients asynchronously
+    logSearchedIngredients(deviceId, ingredients, language).catch(err => 
+      console.error("[PREVIEW] Failed to log searched ingredients:", err)
+    );
 
     const systemPrompt = previewSystemPrompt(language, exactCount, extraCount, excludeTitles);
     const userPrompt = previewUserPrompt(ingredients, cuisines, servings, language, exactCount + extraCount, excludeTitles);
