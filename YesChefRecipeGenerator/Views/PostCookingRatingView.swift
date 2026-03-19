@@ -134,6 +134,7 @@ struct PostCookingRatingView: View {
 
 
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             LinearGradient(
                 colors: [Color(red: 1, green: 0.97, blue: 0.93), Color(.systemGroupedBackground)],

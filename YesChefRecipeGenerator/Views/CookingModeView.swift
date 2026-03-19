@@ -49,6 +49,7 @@ struct CookingModeView: View {
                         }
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1)
                 }
             }
             .background(
@@ -61,6 +62,7 @@ struct CookingModeView: View {
             )
             .navigationTitle(lang.t("Cooking Mode", "Pişirme Modu"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(showPostRating ? .hidden : .visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
