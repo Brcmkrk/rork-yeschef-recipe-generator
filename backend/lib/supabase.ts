@@ -96,7 +96,16 @@ export async function markRecipeAsTried(entry: TriedRecipe) {
   return data;
 }
 
-export async function logSearchedIngredients(deviceId: string, ingredients: string[], language: string = 'en', latencyMs?: number) {
+export async function logSearchedIngredients(
+  deviceId: string,
+  ingredients: string[],
+  language: string = 'en',
+  latencyMs?: number,
+  servings?: number,
+  cuisineCount?: number,
+  exactMatchCount?: number,
+  extraMatchCount?: number
+) {
   if (!deviceId || !ingredients || ingredients.length === 0) return null;
   
   const payload: any = {
@@ -106,6 +115,18 @@ export async function logSearchedIngredients(deviceId: string, ingredients: stri
   };
   if (typeof latencyMs === 'number') {
       payload.generation_time_ms = latencyMs;
+  }
+  if (typeof servings === 'number') {
+      payload.servings = servings;
+  }
+  if (typeof cuisineCount === 'number') {
+      payload.cuisine_count = cuisineCount;
+  }
+  if (typeof exactMatchCount === 'number') {
+      payload.exact_match_count = exactMatchCount;
+  }
+  if (typeof extraMatchCount === 'number') {
+      payload.extra_match_count = extraMatchCount;
   }
 
   const { data, error } = await supabase

@@ -453,14 +453,18 @@ class SupabaseService {
         }
     }
 
-    func saveSearchedIngredientsWithTime(_ ingredients: [String], language: String, generationTimeMs: Int) async {
+    func saveSearchedIngredientsWithTime(_ ingredients: [String], language: String, generationTimeMs: Int, servings: Int, cuisineCount: Int, exactMatchCount: Int, extraMatchCount: Int) async {
         guard isConfigured, !ingredients.isEmpty else { return }
 
         let body: [String: Any] = [
             "device_id": deviceId,
             "ingredients": ingredients,
             "language": language,
-            "generation_time_ms": generationTimeMs
+            "generation_time_ms": generationTimeMs,
+            "servings": servings,
+            "cuisine_count": cuisineCount,
+            "exact_match_count": exactMatchCount,
+            "extra_match_count": extraMatchCount
         ]
 
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body),

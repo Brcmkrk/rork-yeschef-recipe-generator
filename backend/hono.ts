@@ -284,6 +284,7 @@ app.post("/generate-recipe-previews", async (c) => {
       extraCount = 2,
       excludeTitles = [],
       deviceId,
+      cuisineCount,
     } = body;
 
     if (!deviceId || !ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
@@ -308,7 +309,7 @@ app.post("/generate-recipe-previews", async (c) => {
     const latencyMs = Date.now() - startTime;
     
     // Log searched ingredients alongside the latency time
-    await logSearchedIngredients(deviceId, ingredients, language, latencyMs).catch(err => 
+    await logSearchedIngredients(deviceId, ingredients, language, latencyMs, servings, cuisineCount ?? cuisines.length, exactCount, extraCount).catch(err => 
       console.error("[PREVIEW] Failed to log searched ingredients:", err)
     );
 
