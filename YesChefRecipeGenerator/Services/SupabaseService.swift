@@ -476,10 +476,22 @@ class SupabaseService {
                 print("[SupabaseService] searched_ingredients POST failed: \(http.statusCode) - \(respBody)")
                 return nil
             }
+            let respBody = String(data: data, encoding: .utf8) ?? "empty"
+            print("[SupabaseService] searched_ingredients POST response: \(respBody.prefix(500))")
             if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               let first = jsonArray.first,
-               let id = first["id"] as? Int {
-                return id
+               let first = jsonArray.first {
+                if let id = first["id"] as? Int {
+                    print("[SupabaseService] searched_ingredients got id (Int): \(id)")
+                    return id
+                } else if let id = first["id"] as? Double {
+                    print("[SupabaseService] searched_ingredients got id (Double): \(id)")
+                    return Int(id)
+                } else if let idStr = first["id"] as? String, let id = Int(idStr) {
+                    print("[SupabaseService] searched_ingredients got id (String): \(idStr)")
+                    return id
+                } else {
+                    print("[SupabaseService] searched_ingredients id type unknown: \(type(of: first["id"])) = \(first["id"] ?? "nil")")
+                }
             }
             return nil
         } catch {
@@ -494,6 +506,8 @@ class SupabaseService {
         let body: [String: Any] = ["generation_time_ms": timeMs]
         let query = "id=eq.\(rowId)"
 
+        print("[SupabaseService] updateGenerationTime: rowId=\(rowId), timeMs=\(timeMs)")
+
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
               let request = makeRequest(path: "searched_ingredients", method: "PATCH", body: bodyData, queryParams: query) else {
             print("[SupabaseService] updateGenerationTime: failed to create request")
@@ -502,9 +516,9 @@ class SupabaseService {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-                let respBody = String(data: data, encoding: .utf8) ?? "unknown"
-                print("[SupabaseService] updateGenerationTime PATCH failed: \(http.statusCode) - \(respBody)")
+            let respBody = String(data: data, encoding: .utf8) ?? "unknown"
+            if let http = response as? HTTPURLResponse {
+                print("[SupabaseService] updateGenerationTime PATCH status: \(http.statusCode) - \(respBody.prefix(300))")
             }
         } catch {
             print("[SupabaseService] updateGenerationTime error: \(error.localizedDescription)")
