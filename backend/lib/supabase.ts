@@ -112,3 +112,12 @@ export async function logSearchedIngredients(deviceId: string, ingredients: stri
   if (error) { console.error('[SUPABASE] logSearchedIngredients error:', error.message); return null; }
   return data;
 }
+
+export async function updateSearchedIngredientsLatency(id: number, latencyMs: number) {
+  if (!id) return;
+  const { error } = await supabase
+    .from('searched_ingredients')
+    .update({ generation_time_ms: latencyMs })
+    .eq('id', id);
+  if (error) { console.error('[SUPABASE] updateLatency error:', error.message); }
+}
