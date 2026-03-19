@@ -11,6 +11,8 @@ struct PaywallView: View {
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
     @State private var isLoadingOfferings: Bool = true
+    @State private var showPurchaseSuccess: Bool = false
+    @Environment(\.dismiss) private var dismiss
 
     private let monthlyPrice: Decimal = 4.99
     private let yearlyPrice: Decimal = 39.99
@@ -47,6 +49,11 @@ struct PaywallView: View {
                 Button(lang.t("OK", "Tamam")) {}
             } message: {
                 Text(errorMessage)
+            }
+            .overlay {
+                if showPurchaseSuccess {
+                    purchaseSuccessOverlay
+                }
             }
         }
     }
@@ -380,6 +387,101 @@ struct PaywallView: View {
         }
     }
 
+    private var purchaseSuccessOverlay: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [.orange.opacity(0.15), .orange.opacity(0.03), .clear],
+                                center: .center,
+                                startRadius: 20,
+                                endRadius: 90
+                            )
+                        )
+                        .frame(width: 180, height: 180)
+
+                    Image("MascotImage")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 110, height: 110)
+                }
+
+                VStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.bounce, value: showPurchaseSuccess)
+
+                    Text(lang.t("Purchase Successful!", "Satın Alma Başarılı!"))
+                        .font(.system(.title2, design: .rounded, weight: .bold))
+
+                    Text(lang.t(
+                        "Welcome to Cooktopus Pro!",
+                        "Cooktopus Pro'ya Hoş Geldiniz!"
+                    ))
+                    .font(.system(.title3, design: .rounded, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+
+                    Text(lang.t(
+                        "Enjoy unlimited recipes, all cuisines, and more.",
+                        "Sınırsız tarifler, tüm mutfaklar ve daha fazlasının keyfini çıkar."
+                    ))
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                }
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "flame.fill")
+                        Text(lang.t("Start Cooking", "Pişirmeye Başla"))
+                            .font(.system(.headline, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        LinearGradient(
+                            colors: [.orange, Color(red: 0.85, green: 0.35, blue: 0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .clipShape(.rect(cornerRadius: 16))
+                    .shadow(color: .orange.opacity(0.35), radius: 12, y: 4)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
+            }
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
     private func purchase(_ package: Package) async {
         isPurchasing = true
         defer { isPurchasing = false }
@@ -387,6 +489,9 @@ struct PaywallView: View {
             let result = try await Purchases.shared.purchase(package: package)
             if result.customerInfo.entitlements["Cooktopus Pro"]?.isActive == true {
                 await subscriptionManager.checkSubscriptionStatus()
+                withAnimation(.spring(duration: 0.5)) {
+                    showPurchaseSuccess = true
+                }
             }
         } catch let error as RevenueCat.ErrorCode {
             if error != .purchaseCancelledError {
@@ -404,7 +509,11 @@ struct PaywallView: View {
         defer { isRestoring = false }
         do {
             try await subscriptionManager.restorePurchases()
-            if !subscriptionManager.isProUser {
+            if subscriptionManager.isProUser {
+                withAnimation(.spring(duration: 0.5)) {
+                    showPurchaseSuccess = true
+                }
+            } else {
                 errorMessage = lang.t(
                     "No active subscription found. If you believe this is an error, please contact support.",
                     "Aktif abonelik bulunamadı. Bunun bir hata olduğunu düşünüyorsanız lütfen destek ile iletişime geçin."
