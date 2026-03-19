@@ -147,7 +147,9 @@ struct ProfileView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(likesStore.likedRecipes) { recipe in
                         recipeRow(recipe, icon: "heart.fill", iconColor: .pink) {
-                            likesStore.hideFromProfile(recipe)
+                            withAnimation(.spring(duration: 0.3)) {
+                                likesStore.unlikeRecipe(recipe)
+                            }
                         }
                     }
                 }
@@ -210,7 +212,7 @@ struct ProfileView: View {
         }
     }
 
-    private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, onDelete: @escaping () -> Void, showLikeToggle: Bool = false) -> some View {
+    private func recipeRow(_ recipe: Recipe, icon: String, iconColor: Color, showLikeToggle: Bool = false, onDelete: @escaping () -> Void) -> some View {
         Button {
             selectedRecipeId = recipe.id
         } label: {

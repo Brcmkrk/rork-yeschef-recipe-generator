@@ -78,6 +78,61 @@ class LikesStore {
         }
     }
 
+    func setLike(for id: String, recipe: Recipe) {
+        let current = reaction(for: id)
+        if current == .like { return }
+        if current == .dislike {
+            adjustLocalCount(id: id, removingReaction: .dislike)
+        }
+        reactions[id] = .like
+        adjustLocalCount(id: id, addingReaction: .like)
+        if !likedRecipes.contains(where: { $0.id == id }) {
+            likedRecipes.insert(recipe, at: 0)
+        }
+        if !everLikedIds.contains(id) {
+            everLikedIds.insert(id)
+            UserDefaults.standard.set(Array(everLikedIds), forKey: everLikedKey)
+            StatsStore.shared.incrementLiked()
+        }
+        saveLocal()
+        Task { try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "like") }
+    }
+
+    func setDislike(for id: String, recipe: Recipe) {
+        let current = reaction(for: id)
+        if current == .dislike { return }
+        if current == .like {
+            adjustLocalCount(id: id, removingReaction: .like)
+            likedRecipes.removeAll { $0.id == id }
+            if everLikedIds.contains(id) {
+                everLikedIds.remove(id)
+                UserDefaults.standard.set(Array(everLikedIds), forKey: everLikedKey)
+                StatsStore.shared.decrementLiked()
+            }
+        }
+        reactions[id] = .dislike
+        adjustLocalCount(id: id, addingReaction: .dislike)
+        saveLocal()
+        Task { try? await SupabaseService.shared.upsertReaction(recipeId: id, recipe: recipe, reaction: "dislike") }
+    }
+
+    func unlikeRecipe(_ recipe: Recipe) {
+        let id = recipe.id
+        let current = reaction(for: id)
+        if current == .like {
+            adjustLocalCount(id: id, removingReaction: .like)
+        }
+        reactions[id] = .none
+        likedRecipes.removeAll { $0.id == id }
+        if everLikedIds.contains(id) {
+            everLikedIds.remove(id)
+            UserDefaults.standard.set(Array(everLikedIds), forKey: everLikedKey)
+            StatsStore.shared.decrementLiked()
+        }
+        saveLocal()
+        Task { try? await SupabaseService.shared.deleteReaction(recipeId: id) }
+    }
+
     func removeLikedRecipe(_ recipe: Recipe) {
         likedRecipes.removeAll { $0.id == recipe.id }
         saveLocal()

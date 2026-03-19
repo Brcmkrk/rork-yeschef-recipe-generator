@@ -49,7 +49,7 @@ struct PostCookingRatingView: View {
                     HStack(spacing: 32) {
                         Button {
                             ratedType = .dislike
-                            likesStore.toggleDislike(for: recipe.id, recipe: recipe)
+                            likesStore.setDislike(for: recipe.id, recipe: recipe)
                             withAnimation(.spring(duration: 0.4, bounce: 0.5)) {
                                 thumbsDownScale = 1.3
                                 rated = true
@@ -81,7 +81,7 @@ struct PostCookingRatingView: View {
 
                         Button {
                             ratedType = .like
-                            likesStore.toggleLike(for: recipe.id, recipe: recipe)
+                            likesStore.setLike(for: recipe.id, recipe: recipe)
                             withAnimation(.spring(duration: 0.4, bounce: 0.5)) {
                                 thumbsUpScale = 1.3
                                 rated = true

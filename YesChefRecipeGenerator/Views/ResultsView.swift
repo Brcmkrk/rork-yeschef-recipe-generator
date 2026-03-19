@@ -316,26 +316,19 @@ struct RecipeCardView: View {
                         }
                     } label: {
                         let isLiked = likesStore.reaction(for: recipe.id) == .like
-                        HStack(spacing: 5) {
+                        let likeCount = likesStore.likesCount(for: recipe.id)
+                        HStack(spacing: 4) {
                             Image(systemName: isLiked ? "heart.fill" : "heart")
                                 .font(.body.weight(.semibold))
-                                .foregroundStyle(isLiked ? .white : .pink)
+                                .foregroundStyle(isLiked ? .pink : .secondary)
                                 .contentTransition(.symbolEffect(.replace))
-                            let likeCount = likesStore.likesCount(for: recipe.id)
-                            Text(isLiked ? lang.t("Saved", "Kaydedildi") : lang.t("Save", "Kaydet"))
-                                .font(.system(.caption, design: .rounded, weight: .bold))
-                                .foregroundStyle(isLiked ? .white : .pink)
                             if likeCount > 0 {
-                                Text("(\(likeCount))")
-                                    .font(.system(.caption2, design: .rounded, weight: .semibold))
-                                    .foregroundStyle(isLiked ? .white.opacity(0.85) : .pink.opacity(0.7))
+                                Text("\(likeCount)")
+                                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(isLiked ? .pink : .secondary)
                                     .contentTransition(.numericText())
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(isLiked ? Color.pink : Color.pink.opacity(0.1))
-                        .clipShape(.capsule)
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .like)
@@ -345,10 +338,20 @@ struct RecipeCardView: View {
                             likesStore.toggleDislike(for: recipe.id, recipe: recipe)
                         }
                     } label: {
-                        Image(systemName: likesStore.reaction(for: recipe.id) == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                            .font(.subheadline)
-                            .foregroundStyle(likesStore.reaction(for: recipe.id) == .dislike ? .red : .secondary)
-                            .contentTransition(.symbolEffect(.replace))
+                        let isDisliked = likesStore.reaction(for: recipe.id) == .dislike
+                        let dislikeCount = likesStore.dislikesCount(for: recipe.id)
+                        HStack(spacing: 4) {
+                            Image(systemName: isDisliked ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                .font(.subheadline)
+                                .foregroundStyle(isDisliked ? .red : .secondary)
+                                .contentTransition(.symbolEffect(.replace))
+                            if dislikeCount > 0 {
+                                Text("\(dislikeCount)")
+                                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(isDisliked ? .red : .secondary)
+                                    .contentTransition(.numericText())
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .sensoryFeedback(.impact(weight: .light), trigger: likesStore.reaction(for: recipe.id) == .dislike)
