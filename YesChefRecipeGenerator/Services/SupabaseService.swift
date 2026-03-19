@@ -453,6 +453,32 @@ class SupabaseService {
         }
     }
 
+    func saveSearchedIngredients(_ ingredients: [String], language: String) async {
+        guard isConfigured, !ingredients.isEmpty else { return }
+
+        let body: [String: Any] = [
+            "device_id": deviceId,
+            "ingredients": ingredients,
+            "language": language
+        ]
+
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
+              let request = makeRequest(path: "searched_ingredients", method: "POST", body: bodyData) else {
+            print("[SupabaseService] searched_ingredients: failed to create request")
+            return
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+                let respBody = String(data: data, encoding: .utf8) ?? "unknown"
+                print("[SupabaseService] searched_ingredients POST failed: \(http.statusCode) - \(respBody)")
+            }
+        } catch {
+            print("[SupabaseService] searched_ingredients error: \(error.localizedDescription)")
+        }
+    }
+
     func saveRecipesToCache(_ recipes: [Recipe], language: String = "en") async {
         guard isConfigured, !recipes.isEmpty else {
             print("[SupabaseService] saveRecipesToCache skipped: configured=\(isConfigured), count=\(recipes.count)")

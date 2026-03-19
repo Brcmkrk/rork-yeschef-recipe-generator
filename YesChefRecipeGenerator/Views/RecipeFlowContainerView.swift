@@ -337,6 +337,7 @@ struct RecipeFlowContainerView: View {
         showLoading = true
 
         Task {
+            await SupabaseService.shared.saveSearchedIngredients(viewModel.selectedIngredients, language: viewModel.language)
             await viewModel.generateRecipes()
             if viewModel.hasResults && viewModel.errorMessage == nil {
                 recipesReady = true
