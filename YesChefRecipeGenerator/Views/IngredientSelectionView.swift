@@ -14,8 +14,11 @@ struct IngredientSelectionView: View {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         guard !query.isEmpty else { return [] }
         return allIngredients.filter { ingredient in
-            ingredient.lowercased().contains(query) &&
-            !viewModel.selectedIngredients.contains(where: { $0.lowercased() == ingredient.lowercased() })
+            let lower = ingredient.lowercased()
+            let words = lower.split(separator: " ").map(String.init)
+            let matchesStart = lower.hasPrefix(query) || words.contains(where: { $0.hasPrefix(query) })
+            return matchesStart &&
+                !viewModel.selectedIngredients.contains(where: { $0.lowercased() == lower })
         }
     }
 

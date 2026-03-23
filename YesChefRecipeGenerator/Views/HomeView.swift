@@ -237,38 +237,56 @@ struct FlowStepCard: View {
     let description: String
     let appeared: Bool
     let delay: Double
+    @State private var isExpanded: Bool = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.12))
-                    .frame(width: 46, height: 46)
-                Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundStyle(color)
+        Button {
+            withAnimation(.spring(duration: 0.3)) {
+                isExpanded.toggle()
             }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.12))
+                        .frame(width: 46, height: 46)
+                    Image(systemName: icon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(color)
+                }
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                Text(description)
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    if isExpanded {
+                        Text(description)
+                            .font(.system(.caption, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .contentTransition(.symbolEffect(.replace))
+
+                Text("\(number)")
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(color.gradient)
+                    .clipShape(Circle())
             }
-
-            Spacer(minLength: 0)
-
-            Text("\(number)")
-                .font(.system(.caption2, design: .rounded, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(color.gradient)
-                .clipShape(Circle())
+            .padding(14)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 14))
+        .buttonStyle(.plain)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
         .animation(.spring(duration: 0.5).delay(delay), value: appeared)
