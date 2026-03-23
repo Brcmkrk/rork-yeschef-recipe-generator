@@ -20,6 +20,7 @@ struct IngredientSelectionView: View {
             return matchesStart &&
                 !viewModel.selectedIngredients.contains(where: { $0.lowercased() == lower })
         }
+        .sorted { $0.count < $1.count }
     }
 
     var body: some View {
